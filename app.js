@@ -273,10 +273,11 @@ async function pageEntity(id) {
   const flts = ent.fields.filter(f => f.flt && f.t === 'select');
   $('#view').innerHTML = `<div id="extra"></div><div class="card"><div class="tools"><input id="q" type="search" placeholder="Cari…">
     ${flts.map(f => `<select data-f="${f.k}"><option value="">Semua ${esc(f.l)}</option>${f.o.map(o => `<option>${esc(o)}</option>`).join('')}</select>`).join('')}
-    <div class="sp"></div><button class="btn sec" id="exp">Ekspor CSV</button>${ent.ops.includes('create') ? '<button class="btn" id="add">+ Tambah</button>' : ''}</div><div id="tbl"></div></div>`;
+    <div class="sp"></div>${ent.imp ? '<button class="btn sec" id="imp">Impor Excel</button>' : ''}<button class="btn sec" id="exp">Ekspor CSV</button>${ent.ops.includes('create') ? '<button class="btn" id="add">+ Tambah</button>' : ''}</div><div id="tbl"></div></div>`;
   $('#q').oninput = e => { V.q = e.target.value; V.page = 1; drawTable(); };
   $$('[data-f]').forEach(s => s.onchange = () => { V.flt[s.dataset.f] = s.value; V.page = 1; drawTable(); });
   $('#exp').onclick = exportCSV;
+  if ($('#imp')) $('#imp').onclick = openImport;
   if ($('#add')) $('#add').onclick = () => openForm(null);
   $('#tbl').onclick = onTblClick;
   drawTable();
@@ -362,6 +363,184 @@ function exportCSV() {
   a.href = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
   a.download = V.id + '-' + new Date().toISOString().slice(0, 10) + '.csv'; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ---------- impor Excel (mis. Dapodik) ---------- */
+const NORM = s => String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+// Nama kolom yang dikenali otomatis (urutan = prioritas). Kolom lain bisa dipilih manual di layar pemetaan.
+const ALIAS = {
+  npsn: ['npsn'], npsn_sekolah: ['npsn sekolah', 'npsn'],
+  nama: ['nama', 'nama lengkap', 'nama gtk', 'nama ptk', 'nama pegawai', 'nama guru', 'nama kepala sekolah'],
+  jenjang: ['bentuk pendidikan', 'jenjang', 'bentuk pendidikan id str'],
+  status_sekolah: ['status sekolah', 'status sekolah id str', 'status'],
+  kecamatan: ['kecamatan'], alamat: ['alamat jalan', 'alamat', 'alamat sekolah'],
+  desa: ['desa kelurahan', 'kelurahan', 'desa'],
+  no_telp: ['nomor telepon', 'no telepon', 'telepon', 'no telp', 'nomor telp', 'telp'],
+  jumlah_siswa: ['jumlah siswa', 'jml siswa', 'jumlah peserta didik', 'peserta didik'],
+  lat: ['lintang', 'latitude', 'lat'], lng: ['bujur', 'longitude', 'lng', 'long'],
+  akreditasi: ['akreditasi'],
+  nip: ['nip', 'nip nuptk', 'nuptk'], nuptk: ['nuptk'],
+  jenis_kelamin: ['jenis kelamin', 'jk', 'l p'],
+  jabatan: ['jabatan', 'jabatan ptk'], golongan: ['pangkat golongan', 'golongan', 'pangkat', 'gol'],
+  unit_kerja: ['unit kerja', 'bidang unit kerja', 'bidang'],
+  status: ['status kepegawaian', 'status pegawai', 'status kepegawaian id str', 'status'],
+  no_hp: ['no hp', 'nomor hp', 'hp', 'no handphone', 'nomor handphone', 'telepon', 'nomor telepon', 'no telepon'],
+  mapel: ['mata pelajaran', 'mapel', 'bidang studi', 'mata pelajaran diajarkan', 'jenis ptk'],
+  pendidikan: ['pendidikan terakhir', 'pendidikan', 'jenjang pendidikan'],
+  tmt_tugas: ['tanggal surat tugas', 'tmt tugas', 'tmt', 'tanggal tugas'],
+  status_kepsek: ['status jabatan', 'status kepsek'], no_sk: ['nomor sk', 'no sk', 'sk'], tmt: ['tmt jabatan', 'tmt', 'tmt sk'],
+  _sekolah_nama: ['nama sekolah', 'sekolah', 'satuan pendidikan', 'nama satuan pendidikan']
+};
+const ALIAS_ENT = { sekolah: { nama: ['nama sekolah', 'nama', 'nama satuan pendidikan'] } };
+function colName(i) { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+function normDate(v) {
+  v = String(v || '').trim(); let m;
+  if ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(v))) return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+  if ((m = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/.exec(v))) return m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
+  return '';
+}
+function loadXLSX() {
+  if (window.XLSX) return Promise.resolve();
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = res; s.onerror = () => rej(new Error('Pustaka Excel gagal dimuat. Periksa koneksi internet.'));
+    document.head.appendChild(s);
+  });
+}
+
+async function openImport() {
+  try { await loadXLSX(); } catch (e) { return toast(e.message, 'er'); }
+  const ent = V.ent, id = V.id;
+  const fields = ent.fields.filter(f => !f.v && !f.calc);
+  const refF = fields.find(f => f.t === 'ref');
+  const dateKeys = new Set(fields.filter(f => f.t === 'date').map(f => f.k));
+  const targets = fields.map(f => ({ k: f.k, l: f.l, r: f.r, t: f.t }))
+    .concat(refF ? [{ k: '_sekolah_nama', l: 'Nama Sekolah (untuk mencari sekolah bila tidak ada kolom NPSN)' }] : [])
+    .concat(id === 'guru' ? [{ k: 'nuptk', l: 'NUPTK (dipakai bila NIP kosong)' }] : []);
+  const KEYTXT = { sekolah: 'NPSN', guru: 'NIP (atau nama + sekolah bila NIP kosong)', kepsek: 'sekolah (satu kepala sekolah per sekolah)', pegawai: 'NIP' }[id] || 'kunci data';
+  const aliasOf = t => ((ALIAS_ENT[id] || {})[t.k] || ALIAS[t.k] || []).map(NORM).concat([NORM(t.l)]);
+  const st = { wb: null, sheet: '', grid: [], hdr: 0, map: {}, dirty: false };
+
+  const m = document.createElement('div'); m.className = 'modal';
+  m.innerHTML = `<div class="box" style="max-width:900px"><div class="mh"><b>Impor Excel — ${esc(ent.title)}</b><button type="button" class="x" aria-label="Tutup">×</button></div>
+    <div class="mb"><p class="mu" style="margin-top:0">Unggah file Excel (.xlsx / .xls / .csv), misalnya hasil ekspor Dapodik. Data dicocokkan berdasarkan <b>${esc(KEYTXT)}</b>: yang sudah ada <b>diperbarui</b>, yang belum ada <b>ditambahkan</b>. Data yang tidak ada di file <b>tidak dihapus</b>. Untuk memperbarui di lain waktu, cukup impor file terbaru.</p>
+    <div class="tools"><input type="file" id="ifile" accept=".xlsx,.xls,.csv" style="max-width:340px"><button type="button" class="btn sec sm" id="itpl">Unduh template kosong</button></div>
+    <div id="iopt"></div><div id="ires"></div></div>
+    <div class="mf"><button type="button" class="btn sec" id="icl">Tutup</button><button type="button" class="btn" id="irun" disabled>Mulai Impor</button></div></div>`;
+  document.body.appendChild(m);
+  const close = async () => {
+    m.remove();
+    if (st.dirty) { try { if (id === 'sekolah') S.refs = (await api('refs')).refs; await V.reload(); } catch (e) {} }
+  };
+  $('.x', m).onclick = close; $('#icl', m).onclick = close;
+
+  $('#itpl', m).onclick = () => {
+    const head = targets.filter(t => t.k[0] !== '_' && t.k !== 'nuptk').map(t => t.t === 'ref' ? 'NPSN Sekolah' : t.l);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([head]), 'Data');
+    XLSX.writeFile(wb, 'template-' + id + '.xlsx');
+  };
+
+  const allAlias = new Set(); targets.forEach(t => aliasOf(t).forEach(a => allAlias.add(a)));
+  const detect = grid => {
+    let best = 0, bs = -1;
+    grid.slice(0, 15).forEach((r, i) => { const s = r.filter(c => allAlias.has(NORM(c))).length; if (s > bs) { bs = s; best = i; } });
+    return best;
+  };
+  const automap = headers => {
+    const used = new Set(), hn = headers.map(NORM), map = {};
+    targets.forEach(t => {
+      map[t.k] = -1;
+      for (const a of aliasOf(t)) { const i = hn.findIndex((h, j) => h === a && !used.has(j)); if (i >= 0) { map[t.k] = i; used.add(i); break; } }
+    });
+    return map;
+  };
+  const mapRow = r => {
+    const o = {};
+    targets.forEach(t => {
+      const c = st.map[t.k];
+      if (c >= 0) { let v = String(r[c] == null ? '' : r[c]).trim(); if (dateKeys.has(t.k)) v = normDate(v); o[t.k] = v; }
+    });
+    return o;
+  };
+  const dataRows = () => {
+    const out = [];
+    for (let i = st.hdr + 1; i < st.grid.length; i++) {
+      const r = st.grid[i];
+      if (!r.some(c => String(c).trim() !== '')) continue;
+      const o = mapRow(r); o._n = i + 1; out.push(o);
+    }
+    return out;
+  };
+
+  const renderPrev = () => {
+    const rows = dataRows(), cols = targets.filter(t => st.map[t.k] >= 0), sci = [];
+    ['nip', 'npsn', 'nuptk', 'npsn_sekolah'].forEach(k => { if (rows.some(r => /e\+/i.test(r[k] || ''))) sci.push(k.toUpperCase()); });
+    $('#iprev', m).innerHTML = (sci.length ? `<div class="msg">Kolom ${sci.join(', ')} berisi angka berbentuk ilmiah (contoh 1.98E+17), sehingga digitnya sudah hilang. Ubah kolom itu menjadi format <b>Teks</b> di Excel (atau ambil ulang dari Dapodik), simpan, lalu unggah ulang.</div>` : '')
+      + (rows.length ? `<div class="tw"><table><thead><tr><th>Baris</th>${cols.map(t => `<th>${esc(t.l)}</th>`).join('')}</tr></thead><tbody>${rows.slice(0, 5).map(r => `<tr><td>${r._n}</td>${cols.map(t => `<td>${esc(r[t.k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div><div class="mu" style="margin-top:6px">${rows.length} baris data akan diproses (5 baris pertama ditampilkan).</div>` : '<div class="empty">Tidak ada baris data di bawah baris judul.</div>');
+    $('#irun', m).disabled = !rows.length || sci.length > 0;
+  };
+  const renderMap = () => {
+    const headers = (st.grid[st.hdr] || []).map(h => String(h == null ? '' : h));
+    st.map = automap(headers);
+    $('#imap', m).innerHTML = `<div class="tw" style="max-height:300px"><table><thead><tr><th>Data di aplikasi</th><th>Kolom di file Excel</th></tr></thead><tbody>${targets.map(t => `<tr><td>${esc(t.l)}${t.r ? ' <i style="color:var(--er)">*</i>' : ''}</td><td><select data-k="${esc(t.k)}"><option value="-1">— tidak diimpor —</option>${headers.map((h, j) => h.trim() ? `<option value="${j}"${st.map[t.k] === j ? ' selected' : ''}>${colName(j)}: ${esc(h)}</option>` : '').join('')}</select></td></tr>`).join('')}</tbody></table></div>`;
+    $$('#imap select', m).forEach(s => s.onchange = () => { st.map[s.dataset.k] = Number(s.value); renderPrev(); });
+    renderPrev();
+  };
+  const buildUI = () => {
+    const sheets = st.wb.SheetNames;
+    $('#iopt', m).innerHTML = `<div class="fg" style="margin:12px 0">
+      ${sheets.length > 1 ? `<div><label>Lembar (sheet)</label><select id="ish">${sheets.map(s => `<option${s === st.sheet ? ' selected' : ''}>${esc(s)}</option>`).join('')}</select></div>` : ''}
+      <div><label>Baris judul kolom (terdeteksi otomatis)</label><input id="ihd" type="number" min="1" value="${st.hdr + 1}"></div>
+      ${refF ? `<div class="full"><label>Sekolah untuk semua baris (isi bila file tidak memuat kolom NPSN)</label><select id="idef"><option value="">— tidak ada —</option>${S.refs.map(s => `<option value="${esc(s.npsn)}">${esc(s.nama)} (${esc(s.jenjang)}) · ${esc(s.npsn)}</option>`).join('')}</select></div>` : ''}
+      <div class="full"><label style="font-weight:400"><input type="checkbox" id="ise" checked style="width:auto"> Kolom yang kosong di file tidak menimpa data yang sudah ada (disarankan)</label></div></div>
+      <h3>Pemetaan kolom</h3><div id="imap"></div><h3 style="margin-top:14px">Pratinjau</h3><div id="iprev"></div>`;
+    if ($('#ish', m)) $('#ish', m).onchange = e => setSheet(e.target.value);
+    $('#ihd', m).onchange = e => { st.hdr = Math.max(0, (parseInt(e.target.value, 10) || 1) - 1); renderMap(); };
+    renderMap();
+  };
+  const setSheet = name => {
+    st.sheet = name;
+    st.grid = XLSX.utils.sheet_to_json(st.wb.Sheets[name], { header: 1, raw: false, defval: '', dateNF: 'yyyy-mm-dd' });
+    if (st.grid.length > 50000) { toast('File terlalu besar (maks. 50.000 baris). Pecah menjadi beberapa file.', 'er'); st.grid = []; }
+    st.hdr = detect(st.grid);
+    buildUI();
+  };
+  $('#ifile', m).onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    $('#ires', m).innerHTML = '';
+    try { st.wb = XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: true, dateNF: 'yyyy-mm-dd' }); }
+    catch (er) { return toast('File tidak dapat dibaca. Pastikan formatnya Excel atau CSV.', 'er'); }
+    setSheet(st.wb.SheetNames[0]);
+  };
+
+  const result = (tot, errs, msg) => {
+    $('#ires', m).innerHTML = `<div class="msg ${msg ? '' : 'ok'}">${msg ? esc(msg) + '<br>' : 'Selesai. '}Baru: <b>${tot.baru}</b> · Diperbarui: <b>${tot.upd}</b> · Tanpa perubahan: <b>${tot.sama}</b> · Gagal: <b>${tot.gagal}</b></div>`
+      + (errs.length ? `<h3>Baris yang gagal${tot.gagal > errs.length ? ' (' + errs.length + ' pertama)' : ''}</h3><div class="tw" style="max-height:240px"><table><thead><tr><th>Baris Excel</th><th>Alasan</th></tr></thead><tbody>${errs.map(x => `<tr><td>${esc(x.n)}</td><td>${esc(x.msg)}</td></tr>`).join('')}</tbody></table></div>` : '');
+  };
+  $('#irun', m).onclick = async () => {
+    const def = refF ? $('#idef', m).value : '';
+    const miss = targets.filter(t => t.r && st.map[t.k] < 0 && !(t.t === 'ref' && (def || st.map._sekolah_nama >= 0)));
+    if (miss.length) return toast('Kolom wajib belum dipetakan: ' + miss.map(t => t.l.replace(/ \(.*/, '')).join(', '), 'er');
+    const rows = dataRows(), tot = { baru: 0, upd: 0, sama: 0, gagal: 0 }, errs = [];
+    $('#irun', m).disabled = true; $('#ifile', m).disabled = true;
+    try {
+      for (let i = 0; i < rows.length; i += 200) {
+        $('#ires', m).innerHTML = `<div class="msg ok">Mengimpor… ${Math.min(i + 200, rows.length)} / ${rows.length} baris. Jangan tutup halaman ini.</div>`;
+        const r = await api('importData', { entity: id, rows: rows.slice(i, i + 200), skipEmpty: $('#ise', m).checked, defaultNpsn: def });
+        st.dirty = true;
+        tot.baru += r.baru; tot.upd += r.upd; tot.sama += r.sama; tot.gagal += r.gagal;
+        r.errors.forEach(x => errs.push(x));
+      }
+      result(tot, errs.slice(0, 100));
+      $('#iopt', m).hidden = true; $('#icl', m).textContent = 'Selesai';
+    } catch (er) {
+      st.dirty = true;
+      result(tot, errs.slice(0, 100), 'Impor terhenti: ' + er.message + ' Sebagian data mungkin sudah masuk; mengimpor ulang file yang sama aman (tidak menggandakan data).');
+      $('#ifile', m).disabled = false; $('#irun', m).disabled = false;
+    }
+  };
 }
 
 /* ---------- lokasi sekolah ---------- */
