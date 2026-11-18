@@ -2,6 +2,6 @@
 // Contoh: https://script.google.com/macros/s/AKfycb.../exec
 window.APP_CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbw8_EkgDYCMI4kvSKPlj2-Nm_T9NEHW8tHG83jDhwy72u301pY46wEMcj4saXhApFtZvQ/exec',
-  APP_NAME: 'SIM Disdik',
-  APP_SUB: 'Sistem Informasi Manajemen Dinas Pendidikan'
+  APP_NAME: 'SIM Disdik Kotawarungin Timur ',
+  APP_SUB: 'Sistem Informasi Terintegrasi untuk Tata Kelola Guru dan Tenaga Kependidikan '
 };
