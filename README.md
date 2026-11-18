@@ -49,6 +49,25 @@ Tab **Daftar Sekolah** di halaman login (publik). Pendaftar mengisi data sekolah
 
 > Setiap kali `Code.gs` diubah, lakukan **Deploy → Manage deployments → Edit → New version** agar perubahan aktif.
 
+## Impor data dari Excel (Dapodik)
+
+Tombol **Impor Excel** ada di menu **Data Sekolah, Data Guru, Data Kepala Sekolah, dan Pegawai Disdik** (untuk super admin & pengguna).
+
+Urutan yang disarankan: **Data Sekolah dahulu**, baru Guru dan Kepala Sekolah (keduanya harus menunjuk sekolah yang sudah ada).
+
+1. Klik **Impor Excel**, pilih file (.xlsx/.xls/.csv).
+2. Aplikasi mendeteksi baris judul dan memetakan kolom otomatis (mis. `NPSN`, `Bentuk Pendidikan`, `Lintang`, `NUPTK`). Cek tabel **Pemetaan kolom**; jika ada yang salah/kosong, pilih kolom yang benar secara manual.
+3. Untuk file guru yang tidak memuat NPSN, pilih sekolahnya di kotak **Sekolah untuk semua baris**, atau petakan kolom **Nama Sekolah**.
+4. Cek **Pratinjau**, lalu **Mulai Impor**. Hasil: jumlah baru / diperbarui / tanpa perubahan / gagal, beserta alasan tiap baris yang gagal.
+
+**Memperbarui data:** unggah file Dapodik terbaru. Kunci pencocokan: Sekolah = NPSN; Guru dan Pegawai = NIP (atau NUPTK; bila kosong, nama + sekolah); Kepala Sekolah = sekolah. Data yang sudah ada diperbarui, yang baru ditambahkan, **yang tidak ada di file tidak dihapus**. Kolom kosong di file tidak menimpa data yang sudah terisi (misalnya koordinat yang Anda isi manual).
+
+Catatan:
+- Sekolah selain TK/SD/SMP (mis. SMA, KB) akan ditolak dengan keterangan "Jenjang ... tidak dikenali".
+- Isian seperti `L`/`P`, `Guru PNS`, `S1` otomatis disamakan dengan pilihan di aplikasi; yang tidak dikenali dikosongkan.
+- NIP/NPSN yang di Excel berbentuk `1.98E+17` sudah kehilangan digit. Aplikasi menolak impor sampai kolomnya dijadikan **Teks**.
+- Mengimpor file yang sama dua kali aman, tidak menggandakan data.
+
 ## Lupa password (OTP WhatsApp)
 
 Di halaman login ada tautan **Lupa password?**. Pengguna memasukkan username, kode OTP 6 digit dikirim ke nomor WhatsApp yang tersimpan pada akunnya (berlaku 5 menit, maksimal 5 kali salah, maksimal 3 permintaan per 15 menit).
