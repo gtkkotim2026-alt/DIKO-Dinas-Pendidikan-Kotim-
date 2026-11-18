@@ -202,17 +202,19 @@ async function doLogout(expired) {
 /* ---------- shell ---------- */
 function init(r) {
   S.user = r.user; S.schema = r.schema; S.refs = r.refs;
-  $('#root').innerHTML = `<div class="app"><aside id="side"><div class="brand">${esc(CFG.APP_NAME || 'SIM Disdik')}<small>${esc(S.user.sekolah_nama || CFG.APP_SUB || '')}</small></div><nav id="nav"></nav></aside>
+  $('#root').innerHTML = `<div class="app"><aside id="side"><div class="brand">${esc(CFG.APP_NAME || 'DIKO')}<small>${esc(S.user.sekolah_nama || CFG.APP_SUB || 'Dinas Pendidikan Kotawaringin Timur')}</small><button type="button" id="nav-toggle" class="nav-toggle" title="Ringkas navigasi" aria-label="Ringkas navigasi">‹</button></div><nav id="nav"></nav></aside>
     <div class="main"><header><button class="btn sec sm" id="burger" aria-label="Menu">☰</button><h1 id="ttl"></h1><div class="sp"></div>
     <span class="who">${esc(S.user.nama)} <span class="badge">${ROLE[S.user.role]}</span></span>
     <button class="btn sec sm" id="wa">No. WA</button><button class="btn sec sm" id="pw">Ubah Password</button><button class="btn sec sm" id="out">Keluar</button></header><main id="view"></main></div></div><div id="scrim"></div>`;
   $('#burger').onclick = () => document.body.classList.toggle('nav-open');
   $('#scrim').onclick = () => document.body.classList.remove('nav-open');
+  $('#nav-toggle').onclick = () => document.body.classList.toggle('nav-compact');
   $('#out').onclick = () => doLogout(false);
   $('#pw').onclick = openPw;
   $('#wa').onclick = openWa;
   const allowed = id => id === 'dashboard' || (id === 'lokasi' ? !!S.schema.sekolah : !!S.schema[id]);
-  const link = i => `<a href="#/${i.id}" data-id="${i.id}">${esc(i.t)}</a>`;
+  const navIcons = { dashboard:'▦', pegawai:'♙', sekolah:'⌂', guru:'♧', kepsek:'★', lokasi:'⌖', kebutuhan:'▤', mutasi:'⇄', mediasi:'◉', disiplin:'▣', usul_plt:'↗', usul_definitif:'◆', pendaftaran:'＋', users:'♙' };
+  const link = i => `<a href="#/${i.id}" data-id="${i.id}" title="${esc(i.t)}"><span class="nav-ico">${navIcons[i.id] || '•'}</span><span class="nav-label">${esc(i.t)}</span></a>`;
   $('#nav').innerHTML = MENU.map(m => {
     if (m.g) { const its = m.items.filter(i => allowed(i.id)); return its.length ? `<div class="grp">${esc(m.g)}</div>` + its.map(link).join('') : ''; }
     return allowed(m.id) ? link(m) : '';
@@ -254,13 +256,38 @@ function openWa() {
 
 /* ---------- dashboard ---------- */
 async function pageDash() {
-  $('#ttl').textContent = 'Dashboard'; $('#view').innerHTML = '<div class="card mu">Memuat…</div>';
-  const st = await api('stats'), keys = Object.keys(st.counts);
-  let h = '';
-  if (S.user.role === 'sekolah') h += `<div class="card"><h3>Selamat datang, ${esc(S.user.sekolah_nama || S.user.nama)}</h3><span class="mu">Kelola data sekolah, guru, kepala sekolah, kebutuhan guru, dan usul mutasi dari menu di samping.</span></div>`;
+  $('#ttl').textContent = 'Dashboard';
+  $('#view').innerHTML = '<div class="card mu">Memuat ringkasan data pendidikan…</div>';
+  const st = await api('stats');
+  const canSchools = !!S.schema.sekolah, canTeachers = !!S.schema.guru;
+  const [schools, teachers] = await Promise.all([
+    canSchools ? api('list', { entity: 'sekolah' }).then(x => x.rows) : [],
+    canTeachers ? api('list', { entity: 'guru' }).then(x => x.rows) : []
+  ]);
+  const jenjang = ['TK', 'SD', 'SMP'];
+  const schoolCount = (j, status) => schools.filter(r => r.jenjang === j && (!status || r.status_sekolah === status)).length;
+  const studentCount = j => schools.filter(r => r.jenjang === j).reduce((n, r) => n + (Number(r.jumlah_siswa) || 0), 0);
+  const teacherStatuses = ['PNS', 'PPPK', 'PPPK PW', 'GTY'];
+  const teacherCount = s => teachers.filter(r => String(r.status || '').trim().toUpperCase() === s.toUpperCase()).length;
+  const totalSchools = schools.length;
+  const totalTeachers = teachers.length;
+  const totalStudents = schools.reduce((n, r) => n + (Number(r.jumlah_siswa) || 0), 0);
+  const maxSchool = Math.max(1, ...jenjang.map(j => schoolCount(j)));
+  const maxTeacher = Math.max(1, ...teacherStatuses.map(s => teacherCount(s)));
+  let h = `<div class="dash-welcome"><div><div class="eyebrow">DINAS PENDIDIKAN KABUPATEN KOTAWARINGIN TIMUR</div><h2>${S.user.role === 'sekolah' ? 'Selamat datang, ' + esc(S.user.sekolah_nama || S.user.nama) : 'Ringkasan Data Pendidikan'}</h2><p>Pantau satuan pendidikan, tenaga pendidik, dan peserta didik dalam satu tampilan.</p></div><div class="dash-date">DATA TERINTEGRASI<br><b>DIKO</b></div></div>`;
   if (st.menunggu) h += `<a class="stat wr" href="#/pendaftaran" style="margin-bottom:16px"><b>${st.menunggu}</b>Pendaftaran sekolah menunggu verifikasi</a>`;
-  h += `<h3>Ringkasan Data</h3><div class="cards">${keys.filter(k => k !== 'pendaftaran').map(k => `<a class="stat" href="#/${k}"><b>${st.counts[k]}</b>${esc(S.schema[k].title)}</a>`).join('')}</div>`;
-  if (S.schema.kebutuhan) h += `<h3>Kekurangan Guru</h3><div class="cards">${['TK', 'SD', 'SMP'].map(j => `<a class="stat" href="#/kebutuhan"><b>${st.kekurangan[j] || 0}</b>Guru kurang — ${j}</a>`).join('')}</div>`;
+  if (canSchools) {
+    h += `<section class="dash-section"><div class="section-heading"><div><h3>Satuan Pendidikan</h3><p class="mu">Jumlah sekolah negeri dan swasta menurut jenjang</p></div><a href="#/sekolah" class="text-link">Lihat data sekolah →</a></div>
+      <div class="dash-kpis"><div class="kpi-card"><span class="kpi-icon">▣</span><div><b>${totalSchools.toLocaleString('id-ID')}</b><small>Total Sekolah</small></div></div><div class="kpi-card"><span class="kpi-icon">♧</span><div><b>${totalTeachers.toLocaleString('id-ID')}</b><small>Total Guru</small></div></div><div class="kpi-card"><span class="kpi-icon">♙</span><div><b>${totalStudents.toLocaleString('id-ID')}</b><small>Total Siswa</small></div></div></div>
+      <div class="dash-grid"><div class="dash-panel"><div class="panel-title"><b>Sekolah per Jenjang</b><span class="mu">Negeri & Swasta</span></div><div class="legend"><span><i class="legend-dot negeri"></i>Negeri</span><span><i class="legend-dot swasta"></i>Swasta</span></div>
+      ${jenjang.map(j => { const n=schoolCount(j,'Negeri'), s=schoolCount(j,'Swasta'), total=n+s; return `<div class="bar-row"><div class="bar-label"><b>${j}</b><span>${total.toLocaleString('id-ID')} sekolah</span></div><div class="stack-track"><i class="stack negeri" style="width:${(n/maxSchool*100).toFixed(1)}%"></i><i class="stack swasta" style="width:${(s/maxSchool*100).toFixed(1)}%"></i></div><div class="bar-values"><span>Negeri ${n}</span><span>Swasta ${s}</span></div></div>`; }).join('')}</div>
+      <div class="dash-panel"><div class="panel-title"><b>Jumlah Peserta Didik</b><span class="mu">Berdasarkan data sekolah</span></div><div class="student-list">${jenjang.map((j,i)=>`<div class="student-item"><span class="student-mark m${i}">${j}</span><div class="student-info"><div><b>${studentCount(j).toLocaleString('id-ID')}</b><small>Siswa ${j}</small></div><div class="mini-track"><i style="width:${(totalStudents?studentCount(j)/totalStudents*100:0).toFixed(1)}%"></i></div></div></div>`).join('')}</div><div class="student-total"><span>Total Peserta Didik</span><b>${totalStudents.toLocaleString('id-ID')}</b></div></div></div></section>`;
+  }
+  if (canTeachers) {
+    h += `<section class="dash-section"><div class="section-heading"><div><h3>Tenaga Pendidik</h3><p class="mu">Jumlah guru berdasarkan status kepegawaian</p></div><a href="#/guru" class="text-link">Lihat data guru →</a></div><div class="dash-panel teacher-panel"><div class="teacher-total"><b>${totalTeachers.toLocaleString('id-ID')}</b><span>Total Data Guru</span></div><div class="teacher-bars">${teacherStatuses.map((s,i)=>{const n=teacherCount(s);return `<div class="teacher-row"><div class="teacher-label"><span class="teacher-dot t${i}"></span><b>${s}</b><strong>${n.toLocaleString('id-ID')}</strong></div><div class="teacher-track"><i class="t${i}" style="width:${(n/maxTeacher*100).toFixed(1)}%"></i></div></div>`}).join('')}</div></div></section>`;
+  }
+  if (S.schema.kebutuhan) h += `<section class="dash-section"><div class="section-heading"><div><h3>Kebutuhan Guru</h3><p class="mu">Rekap kekurangan guru per jenjang</p></div><a href="#/kebutuhan" class="text-link">Lihat rincian →</a></div><div class="cards">${jenjang.map(j => `<a class="stat" href="#/kebutuhan"><b>${st.kekurangan[j] || 0}</b>Guru kurang — ${j}</a>`).join('')}</div></section>`;
+  if (!canSchools && !canTeachers) h += `<div class="cards">${Object.keys(st.counts).filter(k => S.schema[k]).map(k => `<a class="stat" href="#/${k}"><b>${st.counts[k]}</b>${esc(S.schema[k].title)}</a>`).join('')}</div>`;
   $('#view').innerHTML = h;
 }
 
@@ -299,7 +326,8 @@ function drawTable() {
     $('#extra').innerHTML = `<div class="cards">${['TK', 'SD', 'SMP'].map(j => `<div class="stat"><b>${tot[j] || 0}</b>Kekurangan guru ${j}</div>`).join('')}</div>`;
   }
   const act = r => {
-    let a = `<button class="btn sm sec" data-a="view" data-id="${esc(r.id)}">Detail</button> `;
+    let a = V.id === 'sekolah' ? `<button class="btn sm sec" data-a="teachers" data-id="${esc(r.id)}">Daftar Guru</button> ` : '';
+    a += `<button class="btn sm sec" data-a="view" data-id="${esc(r.id)}">Detail</button> `;
     if (V.id === 'pendaftaran' && r.status === 'Menunggu') a += `<button class="btn sm" data-a="ok" data-id="${esc(r.id)}">Setujui</button> <button class="btn sm sec" data-a="no" data-id="${esc(r.id)}">Tolak</button> `;
     if (can('update')) a += `<button class="btn sm sec" data-a="edit" data-id="${esc(r.id)}">Ubah</button> `;
     if (can('delete')) a += `<button class="btn sm dan" data-a="del" data-id="${esc(r.id)}">Hapus</button>`;
@@ -316,6 +344,7 @@ async function onTblClick(e) {
   if (a === 'prev') { V.page--; return drawTable(); }
   if (a === 'next') { V.page++; return drawTable(); }
   try {
+    if (a === 'teachers') return openTeacherRoster(rec);
     if (a === 'view') return openView(rec);
     if (a === 'edit') return openForm(rec);
     if (a === 'del') { if (confirm('Hapus data ini? Tindakan tidak dapat dibatalkan.')) { await api('remove', { entity: V.id, id: rec.id }); toast('Data dihapus', 'ok'); await V.reload(); } return; }
@@ -323,6 +352,16 @@ async function onTblClick(e) {
     if (a === 'no') { const c = prompt('Alasan penolakan (akan terlihat oleh pendaftar):'); if (c === null) return; await api('reject', { id: rec.id, catatan: c }); toast('Pendaftaran ditolak'); await V.reload(); }
   } catch (er) { toast(er.message, 'er'); }
 }
+async function openTeacherRoster(school) {
+  const m = modal('Daftar Guru — ' + school.nama, '<div class="mu">Memuat daftar guru…</div>', async () => {}, { ok: 'Tutup', cancel: 'Tutup' });
+  $('.mf .btn:not(.sec)', m).style.display = 'none';
+  try {
+    const rows = (await api('list', { entity: 'guru' })).rows.filter(r => r.npsn_sekolah === school.npsn).sort((a,b)=>String(a.nama||'').localeCompare(String(b.nama||''),'id'));
+    $('.mb', m).innerHTML = `<div class="roster-summary"><div><b>${rows.length.toLocaleString('id-ID')}</b><span>Guru terdaftar</span></div><div><b>${esc(school.jenjang || '—')}</b><span>Jenjang</span></div><div><b>${esc(school.npsn || '—')}</b><span>NPSN</span></div></div>` +
+      (rows.length ? `<div class="tw"><table><thead><tr><th>No.</th><th>Nama Guru</th><th>NIP / NUPTK</th><th>Mata Pelajaran</th><th>Status</th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td><b>${esc(r.nama)}</b></td><td>${esc(r.nip || '—')}</td><td>${esc(r.mapel || '—')}</td><td>${cell({t:'select'},r.status)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Belum ada data guru yang terhubung dengan sekolah ini.</div>');
+  } catch (e) { $('.mb', m).innerHTML = `<div class="msg">${esc(e.message)}</div>`; }
+}
+
 function openView(rec) {
   modal('Detail', `<dl>${V.ent.fields.filter(f => !f.v && !f.calc || f.calc).map(f => `<dt>${esc(f.l)}</dt><dd>${cell(f, rec[f.k])}</dd>`).join('')}</dl>`, async () => {}, { ok: 'Tutup', cancel: 'Batal' });
 }
