@@ -85,7 +85,9 @@ function modal(title, body, onSubmit, opt = {}) {
   return m;
 }
 function inputHTML(f, val, req) {
-  const id = 'f_' + f.k, rq = req ? ' required' : '', v = val == null ? '' : val;
+  const id = 'f_' + f.k, rq = req ? ' required' : '';
+  let v = val == null ? '' : val;
+  if (f.k === 'status') v = ({ 'Honorer': 'Guru Honor Sekolah', 'GTT': 'Guru Honor Sekolah', 'GTY': 'GTY/PTY', 'PTY': 'GTY/PTY', 'PPPK PW': 'PPPK Paruh Waktu' })[String(v)] || v;
   if (f.t === 'textarea') return `<textarea id="${id}" rows="3"${rq}>${esc(v)}</textarea>`;
   if (f.t === 'select') return `<select id="${id}"${rq}><option value="">— pilih —</option>${f.o.map(o => `<option${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
   if (f.t === 'ref') return `<select id="${id}"${rq}><option value="">— pilih sekolah —</option>${S.refs.map(s => `<option value="${esc(s.npsn)}"${s.npsn === v ? ' selected' : ''}>${esc(s.nama)} (${esc(s.jenjang)}) · ${esc(s.npsn)}</option>`).join('')}</select>`;
@@ -267,8 +269,9 @@ async function pageDash() {
   const jenjang = ['TK', 'SD', 'SMP'];
   const schoolCount = (j, status) => schools.filter(r => r.jenjang === j && (!status || r.status_sekolah === status)).length;
   const studentCount = j => schools.filter(r => r.jenjang === j).reduce((n, r) => n + (Number(r.jumlah_siswa) || 0), 0);
-  const teacherStatuses = ['PNS', 'PPPK', 'PPPK PW', 'GTY'];
-  const teacherCount = s => teachers.filter(r => String(r.status || '').trim().toUpperCase() === s.toUpperCase()).length;
+  const teacherStatuses = ['CPNS', 'GTY/PTY', 'PNS', 'PNS Depag', 'PPPK', 'PPPK Paruh Waktu', 'Guru Honor Sekolah', 'Honor Daerah TK.I Provinsi', 'Honor Daerah TK.II Kab/Kota', 'Lainnya', 'Tenaga Honor Sekolah'];
+  const normTeacherStatus = v => { const x=String(v||'').trim().toUpperCase().replace(/\s+/g,' '); return x === 'PPPK PW' ? 'PPPK PARUH WAKTU' : x === 'GTY' || x === 'PTY' ? 'GTY/PTY' : x === 'HONORER' || x === 'GTT' ? 'GURU HONOR SEKOLAH' : x; };
+  const teacherCount = s => teachers.filter(r => normTeacherStatus(r.status) === normTeacherStatus(s)).length;
   const totalSchools = schools.length;
   const totalTeachers = teachers.length;
   const totalStudents = schools.reduce((n, r) => n + (Number(r.jumlah_siswa) || 0), 0);
@@ -358,7 +361,7 @@ async function openTeacherRoster(school) {
   try {
     const rows = (await api('list', { entity: 'guru' })).rows.filter(r => r.npsn_sekolah === school.npsn).sort((a,b)=>String(a.nama||'').localeCompare(String(b.nama||''),'id'));
     $('.mb', m).innerHTML = `<div class="roster-summary"><div><b>${rows.length.toLocaleString('id-ID')}</b><span>Guru terdaftar</span></div><div><b>${esc(school.jenjang || '—')}</b><span>Jenjang</span></div><div><b>${esc(school.npsn || '—')}</b><span>NPSN</span></div></div>` +
-      (rows.length ? `<div class="tw"><table><thead><tr><th>No.</th><th>Nama Guru</th><th>NIP / NUPTK</th><th>Mata Pelajaran</th><th>Status</th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td><b>${esc(r.nama)}</b></td><td>${esc(r.nip || '—')}</td><td>${esc(r.mapel || '—')}</td><td>${cell({t:'select'},r.status)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Belum ada data guru yang terhubung dengan sekolah ini.</div>');
+      (rows.length ? `<div class="tw"><table><thead><tr><th>No.</th><th>Nama Guru</th><th>NIK</th><th>NUPTK</th><th>NIP</th><th>L/P</th><th>Jenis PTK</th><th>Jabatan PTK</th><th>Status Kepegawaian</th><th>Pendidikan</th><th>Mata Pelajaran</th><th>Nomor HP</th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td><b>${esc(r.nama)}</b></td><td>${esc(r.nik || '—')}</td><td>${esc(r.nuptk || '—')}</td><td>${esc(r.nip || '—')}</td><td>${esc(r.jenis_kelamin || '—')}</td><td>${esc(r.jenis_ptk || '—')}</td><td>${esc(r.jabatan_ptk || '—')}</td><td>${cell({t:'select'},r.status)}</td><td>${esc(r.pendidikan || '—')}</td><td>${esc(r.mapel || '—')}</td><td>${esc(r.no_hp || '—')}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Belum ada data guru yang terhubung dengan sekolah ini.</div>');
   } catch (e) { $('.mb', m).innerHTML = `<div class="msg">${esc(e.message)}</div>`; }
 }
 
@@ -418,7 +421,7 @@ const ALIAS = {
   jumlah_siswa: ['jumlah siswa', 'jml siswa', 'jumlah peserta didik', 'peserta didik'],
   lat: ['lintang', 'latitude', 'lat'], lng: ['bujur', 'longitude', 'lng', 'long'],
   akreditasi: ['akreditasi'],
-  nip: ['nip', 'nip nuptk', 'nuptk'], nuptk: ['nuptk'],
+  nip: ['nip'], nuptk: ['nuptk'],
   jenis_kelamin: ['jenis kelamin', 'jk', 'l p'],
   jabatan: ['jabatan', 'jabatan ptk'], golongan: ['pangkat golongan', 'golongan', 'pangkat', 'gol'],
   unit_kerja: ['unit kerja', 'bidang unit kerja', 'bidang'],
@@ -428,6 +431,16 @@ const ALIAS = {
   pendidikan: ['pendidikan terakhir', 'pendidikan', 'jenjang pendidikan'],
   tmt_tugas: ['tanggal surat tugas', 'tmt tugas', 'tmt', 'tanggal tugas'],
   status_kepsek: ['status jabatan', 'status kepsek'], no_sk: ['nomor sk', 'no sk', 'sk'], tmt: ['tmt jabatan', 'tmt', 'tmt sk'],
+  nik: ['nik', 'nomor induk kependudukan'], nuptk: ['nuptk'], nip: ['nip'],
+  jenis_kelamin: ['l p', 'l/p', 'jenis kelamin', 'jk'], tempat_lahir: ['tempat lahir'], tanggal_lahir: ['tanggal lahir', 'tgl lahir'],
+  status_tugas: ['status tugas'], tempat_tugas: ['tempat tugas'], npsn_sekolah: ['npsn', 'npsn sekolah'],
+  kabupaten_kota: ['kabupaten kota', 'kabupaten/kota'], sk_cpns: ['sk cpns'], tanggal_cpns: ['tanggal cpns', 'tgl cpns'],
+  sk_pengangkatan: ['sk pengangkatan'], tmt_pengangkatan: ['tmt pengangkatan'], jenis_ptk: ['jenis ptk'], jabatan_ptk: ['jabatan ptk'],
+  bidang_studi_pendidikan: ['bidang studi pendidikan'], bidang_studi_sertifikasi: ['bidang studi sertifikasi'],
+  pangkat_gol: ['pangkat gol', 'pangkat golongan'], tmt_pangkat: ['tmt pangkat'], masa_kerja_tahun: ['masa kerja tahun'],
+  masa_kerja_bulan: ['masa kerja bulan'], jam_mengajar_perminggu: ['jam mengajar perminggu', 'jam mengajar per minggu'],
+  jabatan_kepsek: ['jabatan kepsek'], status: ['status kepegawaian', 'status pegawai'], pendidikan: ['pendidikan'],
+  mapel: ['mata pelajaran diajarkan', 'mata pelajaran', 'mapel'],
   _sekolah_nama: ['nama sekolah', 'sekolah', 'satuan pendidikan', 'nama satuan pendidikan']
 };
 const ALIAS_ENT = { sekolah: { nama: ['nama sekolah', 'nama', 'nama satuan pendidikan'] } };
