@@ -90,7 +90,7 @@ function inputHTML(f, val, req) {
   if (f.t === 'select') return `<select id="${id}"${rq}><option value="">— pilih —</option>${f.o.map(o => `<option${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
   if (f.t === 'ref') return `<select id="${id}"${rq}><option value="">— pilih sekolah —</option>${S.refs.map(s => `<option value="${esc(s.npsn)}"${s.npsn === v ? ' selected' : ''}>${esc(s.nama)} (${esc(s.jenjang)}) · ${esc(s.npsn)}</option>`).join('')}</select>`;
   const type = { number: 'number', date: 'date', tel: 'tel', password: 'password' }[f.t] || 'text';
-  return `<input id="${id}" type="${type}"${f.t === 'number' ? ' step="any"' : ''}${f.t === 'password' ? ' autocomplete="new-password"' : ''} value="${esc(v)}"${rq}>`;
+  return `<input id="${id}" type="${type}"${f.t === 'number' ? ' step="any"' : ''}${f.t === 'password' ? ' data-pw autocomplete="new-password"' : ''} value="${esc(v)}"${rq}>`;
 }
 function fieldWrap(f, val, req) {
   return `<div id="w_${f.k}" class="${f.t === 'textarea' || f.full ? 'full' : ''}"><label for="f_${f.k}">${esc(f.l)}${req ? ' <i>*</i>' : ''}</label>${inputHTML(f, val, req)}</div>`;
@@ -108,6 +108,12 @@ function bindGeo(root) {
   };
 }
 
+const SHOWPW = '<label style="font-weight:400;display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" data-show style="width:auto"> Tampilkan password</label>';
+function bindShow(root) {
+  const c = $('[data-show]', root); if (!c) return;
+  c.onchange = () => $$('[data-pw]', root).forEach(i => { i.type = c.checked ? 'text' : 'password'; });
+}
+
 /* ---------- login / daftar ---------- */
 function showLogin() {
   S.token = null; S.user = null;
@@ -122,9 +128,12 @@ function showLogin() {
 function authLogin(info) {
   $('#ab').innerHTML = `${info ? `<div class="msg ok">${esc(info)}</div>` : ''}<form id="lf"><div class="fg">
     <div class="full"><label>Username</label><input id="lu" autocomplete="username" required></div>
-    <div class="full"><label>Password</label><input id="lp" type="password" autocomplete="current-password" required></div></div>
+    <div class="full"><label>Password</label><input id="lp" type="password" data-pw autocomplete="current-password" required>${SHOWPW}</div></div>
     <div id="le" class="msg" hidden></div><p><button class="btn" style="width:100%">Masuk</button></p>
+    <p style="text-align:center"><a href="#" id="fp">Lupa password?</a></p>
     <p class="mu">Sekolah baru? Gunakan tab <b>Daftar Sekolah</b>. Setelah disetujui admin, login memakai NPSN sebagai username.</p></form>`;
+  bindShow($('#lf'));
+  $('#fp').onclick = e => { e.preventDefault(); authForgot($('#lu').value); };
   $('#lf').onsubmit = async e => {
     e.preventDefault(); const b = $('#lf .btn'); b.disabled = true; $('#le').hidden = true;
     try { const r = await api('login', { username: $('#lu').value, password: $('#lp').value }); S.token = r.token; sessionStorage.setItem('tk', r.token); init(r); }
@@ -133,12 +142,12 @@ function authLogin(info) {
 }
 function authReg() {
   $('#ab').innerHTML = `<form id="rf" novalidate><div class="fg">${REG.map(f => fieldWrap(f, '', f.r)).join('')}${geoBtn()}
-    <div><label for="f_pw">Password <i>*</i></label><input id="f_pw" type="password" minlength="8" autocomplete="new-password" required></div>
-    <div><label for="f_pw2">Ulangi Password <i>*</i></label><input id="f_pw2" type="password" minlength="8" autocomplete="new-password" required></div>
+    <div><label for="f_pw">Password <i>*</i></label><input id="f_pw" type="password" data-pw minlength="8" autocomplete="new-password" required></div>
+    <div><label for="f_pw2">Ulangi Password <i>*</i></label><input id="f_pw2" type="password" data-pw minlength="8" autocomplete="new-password" required></div><div class="full">${SHOWPW}</div>
     <div class="hp" aria-hidden="true"><input id="f_website" tabindex="-1" autocomplete="off"></div></div>
     <div id="re" class="msg" hidden></div><p><button class="btn" style="width:100%">Kirim Pendaftaran</button></p>
     <p class="mu">Username login = NPSN. Akun aktif setelah diverifikasi admin Disdik.</p></form>`;
-  bindGeo($('#rf'));
+  bindGeo($('#rf')); bindShow($('#rf'));
   $('#rf').onsubmit = async e => {
     e.preventDefault(); const f = e.target; if (!f.checkValidity()) { f.reportValidity(); return; }
     const re = $('#re'); re.hidden = true;
@@ -147,6 +156,38 @@ function authReg() {
     const b = $('.btn', f); b.disabled = true;
     try { await api('register', { data }); $$('.tabs button')[0].click(); authLogin('Pendaftaran terkirim. Tunggu verifikasi admin, lalu masuk dengan NPSN sebagai username.'); }
     catch (er) { re.hidden = false; re.textContent = er.message; b.disabled = false; }
+  };
+}
+function authForgot(un) {
+  $('#ab').innerHTML = `<form id="ff"><p class="mu">Masukkan username Anda (untuk sekolah: NPSN). Kode OTP akan dikirim lewat WhatsApp ke nomor yang terdaftar pada akun.</p>
+    <div><label for="fu">Username</label><input id="fu" value="${esc(un || '')}" autocomplete="username" required></div>
+    <div id="fe" class="msg" hidden></div><p><button class="btn" style="width:100%">Kirim Kode OTP</button></p>
+    <p style="text-align:center"><a href="#" id="fb">Kembali ke login</a></p></form>`;
+  $('#fb').onclick = e => { e.preventDefault(); authLogin(); };
+  $('#ff').onsubmit = async e => {
+    e.preventDefault(); const b = $('#ff .btn'); b.disabled = true; $('#fe').hidden = true;
+    try { const r = await api('requestOtp', { username: $('#fu').value }); authReset($('#fu').value.trim().toLowerCase(), r.pesan); }
+    catch (er) { const x = $('#fe'); x.hidden = false; x.textContent = er.message; b.disabled = false; }
+  };
+}
+function authReset(un, info) {
+  $('#ab').innerHTML = `<form id="rsf" novalidate><div class="msg ok">${esc(info)}</div><div class="fg">
+    <div class="full"><label>Username</label><input value="${esc(un)}" disabled></div>
+    <div class="full"><label for="ro">Kode OTP (6 digit)</label><input id="ro" inputmode="numeric" maxlength="6" pattern="\\d{6}" autocomplete="one-time-code" required></div>
+    <div><label for="rp1">Password baru (min. 8)</label><input id="rp1" type="password" data-pw minlength="8" autocomplete="new-password" required></div>
+    <div><label for="rp2">Ulangi password baru</label><input id="rp2" type="password" data-pw minlength="8" autocomplete="new-password" required></div>
+    <div class="full">${SHOWPW}</div></div><div id="rse" class="msg" hidden></div>
+    <p><button class="btn" style="width:100%">Atur Password Baru</button></p>
+    <p style="text-align:center"><a href="#" id="rb">Kirim ulang kode / kembali</a></p></form>`;
+  bindShow($('#rsf'));
+  $('#rb').onclick = e => { e.preventDefault(); authForgot(un); };
+  $('#rsf').onsubmit = async e => {
+    e.preventDefault(); const f = e.target; if (!f.checkValidity()) { f.reportValidity(); return; }
+    const er = $('#rse'); er.hidden = true;
+    if ($('#rp1').value !== $('#rp2').value) { er.hidden = false; er.textContent = 'Konfirmasi password tidak sama'; return; }
+    const b = $('.btn', f); b.disabled = true;
+    try { await api('resetPassword', { username: un, otp: $('#ro').value, newPassword: $('#rp1').value }); authLogin('Password berhasil diubah. Silakan masuk dengan password baru.'); }
+    catch (x) { er.hidden = false; er.textContent = x.message; b.disabled = false; }
   };
 }
 async function doLogout(expired) {
@@ -164,11 +205,12 @@ function init(r) {
   $('#root').innerHTML = `<div class="app"><aside id="side"><div class="brand">${esc(CFG.APP_NAME || 'SIM Disdik')}<small>${esc(S.user.sekolah_nama || CFG.APP_SUB || '')}</small></div><nav id="nav"></nav></aside>
     <div class="main"><header><button class="btn sec sm" id="burger" aria-label="Menu">☰</button><h1 id="ttl"></h1><div class="sp"></div>
     <span class="who">${esc(S.user.nama)} <span class="badge">${ROLE[S.user.role]}</span></span>
-    <button class="btn sec sm" id="pw">Ubah Password</button><button class="btn sec sm" id="out">Keluar</button></header><main id="view"></main></div></div><div id="scrim"></div>`;
+    <button class="btn sec sm" id="wa">No. WA</button><button class="btn sec sm" id="pw">Ubah Password</button><button class="btn sec sm" id="out">Keluar</button></header><main id="view"></main></div></div><div id="scrim"></div>`;
   $('#burger').onclick = () => document.body.classList.toggle('nav-open');
   $('#scrim').onclick = () => document.body.classList.remove('nav-open');
   $('#out').onclick = () => doLogout(false);
   $('#pw').onclick = openPw;
+  $('#wa').onclick = openWa;
   const allowed = id => id === 'dashboard' || (id === 'lokasi' ? !!S.schema.sekolah : !!S.schema[id]);
   const link = i => `<a href="#/${i.id}" data-id="${i.id}">${esc(i.t)}</a>`;
   $('#nav').innerHTML = MENU.map(m => {
@@ -191,12 +233,23 @@ async function route() {
 window.addEventListener('hashchange', route);
 
 function openPw() {
-  modal('Ubah Password', `<div class="fg"><div class="full"><label>Password lama</label><input id="p0" type="password" required></div>
-    <div><label>Password baru (min. 8)</label><input id="p1" type="password" minlength="8" required></div>
-    <div><label>Ulangi password baru</label><input id="p2" type="password" minlength="8" required></div></div>`, async () => {
+  const m = modal('Ubah Password', `<div class="fg"><div class="full"><label>Password lama</label><input id="p0" type="password" data-pw required></div>
+    <div><label>Password baru (min. 8)</label><input id="p1" type="password" data-pw minlength="8" required></div>
+    <div><label>Ulangi password baru</label><input id="p2" type="password" data-pw minlength="8" required></div><div class="full">${SHOWPW}</div></div>`, async () => {
     if ($('#p1').value !== $('#p2').value) throw new Error('Konfirmasi password tidak sama');
     await api('changePassword', { oldPassword: $('#p0').value, newPassword: $('#p1').value }); toast('Password diperbarui', 'ok');
   });
+  bindShow(m);
+}
+
+function openWa() {
+  modal('Nomor WhatsApp', `<p class="mu">Nomor ini dipakai menerima kode OTP saat lupa password. ${S.user.wa_mask ? 'Nomor saat ini: <b>' + esc(S.user.wa_mask) + '</b>.' : 'Belum ada nomor terdaftar.'}</p>
+    <div class="fg"><div><label for="w1">Nomor WhatsApp baru</label><input id="w1" type="tel" placeholder="0812xxxxxxx" required></div>
+    <div><label for="w2">Password Anda (konfirmasi)</label><input id="w2" type="password" data-pw required></div><div class="full">${SHOWPW}</div></div>`, async () => {
+    const r = await api('setWa', { noWa: $('#w1').value, password: $('#w2').value });
+    S.user.wa_mask = r.mask; toast('Nomor WhatsApp disimpan', 'ok');
+  });
+  bindShow(document.body.lastElementChild);
 }
 
 /* ---------- dashboard ---------- */
@@ -292,6 +345,13 @@ function openForm(rec) {
     const rs = $('#f_role', m), t = () => { $('#w_npsn_sekolah', m).style.display = rs.value === 'sekolah' ? '' : 'none'; };
     rs.onchange = t; t();
     if (!isNew) $('#f_password', m).placeholder = 'Kosongkan jika tidak diubah';
+    $('#w_password', m).insertAdjacentHTML('beforeend', SHOWPW + '<button type="button" class="btn sec sm" id="gen" style="margin-top:6px">Buat password acak</button><div class="mu" style="font-size:12px;margin-top:4px">Password asli tidak bisa dilihat (disimpan sebagai hash). Jika pengguna lupa, buat password baru di sini lalu sampaikan kepadanya.</div>');
+    bindShow(m);
+    $('#gen', m).onclick = () => {
+      const a = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+      const p = [...crypto.getRandomValues(new Uint32Array(12))].map(x => a[x % a.length]).join('');
+      const i = $('#f_password', m); i.type = 'text'; i.value = p; $('[data-show]', m).checked = true;
+    };
   }
 }
 function exportCSV() {
