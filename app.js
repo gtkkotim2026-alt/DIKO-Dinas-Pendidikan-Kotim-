@@ -392,7 +392,12 @@ function drawMap(list) {
   if (typeof L === 'undefined') { $('#map').innerHTML = '<div class="empty">Peta tidak dapat dimuat (periksa koneksi internet).</div>'; return; }
   if (!MAP) {
     MAP = L.map('map').setView([-2.5, 118], 5);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(MAP);
+    const esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
+    const satelit = L.tileLayer(esri + 'World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 18, attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics' });
+    const label = L.tileLayer(esri + 'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 18, attribution: '&copy; Esri' });
+    const jalan = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' });
+    satelit.addTo(MAP); label.addTo(MAP);   // tampilan awal: satelit + nama tempat
+    L.control.layers({ 'Satelit': satelit, 'Peta jalan': jalan }, { 'Nama tempat': label }, { collapsed: false }).addTo(MAP);
     MAP._lg = L.layerGroup().addTo(MAP);
   }
   MAP._lg.clearLayers(); const pts = [];
