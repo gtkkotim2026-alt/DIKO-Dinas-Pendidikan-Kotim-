@@ -49,6 +49,21 @@ Tab **Daftar Sekolah** di halaman login (publik). Pendaftar mengisi data sekolah
 
 > Setiap kali `Code.gs` diubah, lakukan **Deploy → Manage deployments → Edit → New version** agar perubahan aktif.
 
+## Lupa password (OTP WhatsApp)
+
+Di halaman login ada tautan **Lupa password?**. Pengguna memasukkan username, kode OTP 6 digit dikirim ke nomor WhatsApp yang tersimpan pada akunnya (berlaku 5 menit, maksimal 5 kali salah, maksimal 3 permintaan per 15 menit).
+
+WhatsApp tidak bisa dikirim langsung dari Apps Script, jadi dibutuhkan **gateway WhatsApp** (bawaan kode memakai [Fonnte](https://docs.fonnte.com/?p=21); berbayar/ada kuota). Penyiapan:
+
+1. Daftar di penyedia gateway, hubungkan nomor WhatsApp pengirim (disarankan nomor khusus instansi, bukan pribadi), lalu salin **token**-nya.
+2. Di Apps Script: **Project Settings → Script properties → Add** → nama `WA_TOKEN`, nilai = token tersebut. (Token tidak ditulis di kode.)
+3. Isi `TEST_NOMOR_WA` di `Code.gs` dengan nomor Anda, pilih fungsi `tesWA` → **Run** (izinkan akses ke layanan eksternal). Pesan tes harus masuk ke WhatsApp.
+4. Jalankan `setup()` sekali lagi agar kolom `no_wa` ditambahkan ke sheet **Users**.
+5. **Deploy → Manage deployments → Edit → New version**.
+6. Isi nomor WA tiap akun: pengguna sendiri lewat tombol **No. WA**, atau super admin lewat menu **Pengguna → Ubah**. Akun sekolah yang disetujui dari pendaftaran otomatis memakai No. HP yang diisi saat mendaftar.
+
+Jika memakai gateway lain, ubah `WA_GATEWAY_URL` dan fungsi `sendWA_` di `Code.gs`.
+
 ## Catatan keamanan
 - Data mediasi perceraian dan pembinaan disiplin bersifat **sensitif**. Jangan membagikan Google Sheet-nya ke orang lain; akses data hanya lewat aplikasi. Sheet berisi hash password, jadi tetap simpan privat.
 - Repositori GitHub hanya berisi kode, **bukan data**. Jangan menaruh URL spreadsheet atau data apa pun di repositori.
