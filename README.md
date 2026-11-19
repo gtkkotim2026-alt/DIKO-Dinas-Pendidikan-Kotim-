@@ -20,7 +20,8 @@ Website statis (HTML/JS) untuk GitHub Pages, dengan database **Google Sheets** m
 | Data Guru | ✔ | ✔ | guru sekolahnya (CRUD) |
 | Data Kepala Sekolah (TK/SD/SMP) | ✔ | ✔ | sekolahnya (tambah/ubah) |
 | Lokasi Sekolah (peta) | ✔ | ✔ | sekolahnya |
-| Kebutuhan Guru (TK/SD/SMP) | ✔ | ✔ | sekolahnya (CRUD) |
+| Data Rombel | ✔ (CRUD + impor) | ✔ (CRUD + impor) | rombel sekolahnya (CRUD) |
+| Kebutuhan Guru (TK/SD/SMP) — dihitung otomatis dari rombel | ✔ | ✔ | sekolahnya (lihat & cetak) |
 | Mutasi | ✔ | ✔ | mengajukan usul; status/No. SK diisi admin |
 | Mediasi Perceraian | ✔ | ✔ | – |
 | Pembinaan Disiplin | ✔ | ✔ | – |
@@ -51,7 +52,7 @@ Tab **Daftar Sekolah** di halaman login (publik). Pendaftar mengisi data sekolah
 
 ## Impor data dari Excel (Dapodik)
 
-Tombol **Impor Excel** ada di menu **Data Sekolah, Data Guru, Data Kepala Sekolah, dan Pegawai Disdik** (untuk super admin & pengguna).
+Tombol **Impor Excel** ada di menu **Data Sekolah, Data Guru, Data Kepala Sekolah, Data Rombel, dan Pegawai Disdik** (untuk super admin & pengguna).
 
 Urutan yang disarankan: **Data Sekolah dahulu**, baru Guru dan Kepala Sekolah (keduanya harus menunjuk sekolah yang sudah ada).
 
@@ -60,13 +61,29 @@ Urutan yang disarankan: **Data Sekolah dahulu**, baru Guru dan Kepala Sekolah (k
 3. Untuk file guru yang tidak memuat NPSN, pilih sekolahnya di kotak **Sekolah untuk semua baris**, atau petakan kolom **Nama Sekolah**.
 4. Cek **Pratinjau**, lalu **Mulai Impor**. Hasil: jumlah baru / diperbarui / tanpa perubahan / gagal, beserta alasan tiap baris yang gagal.
 
-**Memperbarui data:** unggah file Dapodik terbaru. Kunci pencocokan: Sekolah = NPSN; Guru dan Pegawai = NIP (atau NUPTK; bila kosong, nama + sekolah); Kepala Sekolah = sekolah. Data yang sudah ada diperbarui, yang baru ditambahkan, **yang tidak ada di file tidak dihapus**. Kolom kosong di file tidak menimpa data yang sudah terisi (misalnya koordinat yang Anda isi manual).
+**Memperbarui data:** unggah file Dapodik terbaru. Kunci pencocokan: Sekolah = NPSN; Guru = NIK (bila kosong: NIP/NUPTK, lalu nama + tanggal lahir + sekolah; baris Induk dan Non Induk dibedakan); Pegawai = NIP; Kepala Sekolah = sekolah. Data yang sudah ada diperbarui, yang baru ditambahkan, **yang tidak ada di file tidak dihapus**. Kolom kosong di file tidak menimpa data yang sudah terisi (misalnya koordinat yang Anda isi manual).
 
 Catatan:
 - Sekolah selain TK/SD/SMP (mis. SMA, KB) akan ditolak dengan keterangan "Jenjang ... tidak dikenali".
 - Isian seperti `L`/`P`, `Guru PNS`, `S1` otomatis disamakan dengan pilihan di aplikasi; yang tidak dikenali dikosongkan.
 - NIP/NPSN yang di Excel berbentuk `1.98E+17` sudah kehilangan digit. Aplikasi menolak impor sampai kolomnya dijadikan **Teks**.
 - Mengimpor file yang sama dua kali aman, tidak menggandakan data.
+
+## Data Guru (format Dapodik) & pencarian profil
+
+- **Data Guru** memuat seluruh 30 kolom file *Individu Guru - Data Pokok Pendidikan* (NIK, NUPTK, NIP, tempat/tanggal lahir, status tugas, tempat tugas, NPSN, SK CPNS, SK/TMT pengangkatan, jenis & jabatan PTK, pendidikan, bidang studi, status kepegawaian, pangkat/TMT pangkat, masa kerja, mata pelajaran, jam mengajar, jabatan kepsek). Nama kolom Dapodik terpetakan otomatis saat impor.
+- Saat impor, karakter tak terlihat di NIK/NIP, teks `null`, dan tanggal kosong `1900-01-01` dibersihkan otomatis. Pilihan *Status Kepegawaian* dan *Pendidikan* mengikuti isian Dapodik. NPSN boleh berisi huruf (mis. `P9926326`).
+- Form **Mutasi, Mediasi Perceraian, Pembinaan Disiplin, Usul Plt, dan Usul Kepsek Definitif** punya kotak **Cari pegawai / guru**: ketik nama, NIP, atau NIK, pilih hasilnya, dan profil (nama, NIP, NIK, jabatan, golongan, status, unit/sekolah) terisi otomatis. Akun sekolah hanya bisa mencari guru sekolahnya sendiri.
+- Perhitungan Kebutuhan Guru hanya menghitung Jenis PTK **Guru** yang bertugas di sekolah **induk** (kepala sekolah, tenaga kependidikan, dan guru non induk tidak dihitung ganda).
+- Setelah memperbarui `Code.gs`: jalankan `setup()` (menambah kolom baru dan menyamakan nilai lama), lalu **New version**.
+
+## Data Rombel & Kebutuhan Guru
+
+1. Impor **Data Rombel** (satu baris = satu rombel; kolom Nama Rombel, Tingkat, Jumlah Siswa; NPSN atau pilih sekolah; Tahun Ajaran diisi di kotak impor bila tidak ada di file). Kunci pembaruan: NPSN + nama rombel + tahun ajaran.
+2. Menu **Kebutuhan Guru** (tab TK / SD / SMP) menghitung otomatis kebutuhan, kekurangan, dan kelebihan guru per sekolah, bisa dicetak (rekap atau dengan rincian tiap sekolah) dan diekspor CSV.
+3. Rumus (Juknis Peraturan Bersama 5 Menteri 2011, beban 24 jam tatap muka): SD = 1 guru kelas/rombel + guru agama & PJOK (rombel x jam : 24); SMP = tiap mapel (rombel x jam : 24) + BK 1 per 150 siswa; TK = 1 guru/rombel. Jam pelajaran ada di konstanta `STANDAR` pada `Code.gs` dan dapat disesuaikan.
+4. "Guru ada" diambil dari Data Guru, dikelompokkan dari isian **Mata Pelajaran**.
+5. Setelah memperbarui `Code.gs`: jalankan `setup()` (membuat sheet **Rombel**), lalu **Deploy > Manage deployments > Edit > New version**. Sheet lama `KebutuhanGuru` tidak lagi dipakai (boleh dihapus).
 
 ## Lupa password (OTP WhatsApp)
 
