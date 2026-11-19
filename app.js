@@ -261,7 +261,11 @@ function init(r) {
   $('#out').onclick = () => doLogout(false);
   $('#pw').onclick = openPw;
   $('#wa').onclick = openWa;
-  const allowed = id => id === 'dashboard' || (id === 'lokasi' ? !!S.schema.sekolah : id === 'kebutuhan' ? !!S.schema.rombel : !!S.schema[id]);
+  const isGuru = S.user.role === 'pengguna' && /^\d{8,}$/.test(S.user.username || '');
+  const allowed = id => {
+    if (isGuru) return id === 'portal_guru' || id === 'mutasi' || id === 'mediasi';
+    return id === 'dashboard' || (id === 'lokasi' ? !!S.schema.sekolah : id === 'kebutuhan' ? !!S.schema.rombel : !!S.schema[id]);
+  };
   const link = i => `<a href="#/${i.id}" data-id="${i.id}"><span class="nav-ico">${i.ico || '•'}</span><span class="nav-label">${esc(i.t)}</span></a>`;
   $('#nav').innerHTML = MENU.map(m => {
     if (m.g) { const its = m.items.filter(i => allowed(i.id)); return its.length ? `<div class="grp">${esc(m.g)}</div>` + its.map(link).join('') : ''; }
@@ -273,7 +277,7 @@ function init(r) {
 async function route() {
   if (!S.user) return;
   let id = location.hash.replace('#/', '') || 'dashboard';
-  if (!S.allowed(id)) id = 'dashboard';
+  if (!S.allowed(id)) id = isGuru ? 'portal_guru' : 'dashboard';
   $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.id === id));
   document.body.classList.remove('nav-open');
   if (MAP) { MAP.remove(); MAP = null; }
