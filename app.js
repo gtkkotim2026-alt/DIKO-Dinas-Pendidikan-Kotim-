@@ -23,7 +23,7 @@ const MENU = [
   { g: 'Administrasi', items: [{ id: 'pendaftaran', t: 'Pendaftaran Sekolah' }, { id: 'users', t: 'Pengguna' }] }
 ];
 const REG = [
-  { k: 'npsn', l: 'NPSN (8 digit)', r: 1 }, { k: 'nama', l: 'Nama Sekolah', r: 1 },
+  { k: 'npsn', l: 'NPSN (8 karakter)', r: 1 }, { k: 'nama', l: 'Nama Sekolah', r: 1 },
   { k: 'jenjang', l: 'Jenjang', t: 'select', o: ['TK', 'SD', 'SMP'], r: 1 },
   { k: 'status_sekolah', l: 'Status Sekolah', t: 'select', o: ['Negeri', 'Swasta'], r: 1 },
   { k: 'alamat', l: 'Alamat', t: 'textarea', r: 1, full: 1 }, { k: 'kecamatan', l: 'Kecamatan', r: 1 },
@@ -268,7 +268,7 @@ async function pageDash() {
 const fnum = n => String(Math.round((Number(n) || 0) * 10) / 10).replace('.', ',');
 const taNow = () => { const d = new Date(), y = d.getFullYear(), a = d.getMonth() >= 6 ? y : y - 1; return a + '/' + (a + 1); };
 const K = { jenjang: 'SD', tahun: '', hitung: 'semua', q: '', st: '', d: null };
-const HITUNG = { semua: 'Semua guru terdata', asn: 'Hanya PNS + PPPK' };
+const HITUNG = { semua: 'Semua guru terdata', asn: 'PNS + PPPK (tanpa paruh waktu)' };
 const STFLT = { '': 'Semua status', kurang: 'Ada kekurangan guru', lebih: 'Ada kelebihan guru', sesuai: 'Sudah sesuai', kosong: 'Rombel belum diisi' };
 const stOk = (r, f) => !f || (f === 'kurang' && r.kurang > 0) || (f === 'lebih' && r.lebih > 0) || (f === 'sesuai' && r.status === 'Sesuai') || (f === 'kosong' && !r.ada_rombel);
 const stBadge = s => `<span class="badge ${{ 'Sesuai': 'ok', 'Kurang': 'er', 'Kurang & Lebih': 'er', 'Lebih': 'wr' }[s] || ''}">${esc(s)}</span>`;
@@ -490,9 +490,9 @@ function openView(rec) {
 }
 function openForm(rec) {
   const ent = V.ent, isNew = !rec, r = rec || {}, sek = S.user.role === 'sekolah';
-  const flds = ent.fields.filter(f => !f.calc && !(sek && (f.k === ent.scope || f.adm)) && !(V.id === 'rombel' && f.k === 'jenjang'));
+  const flds = ent.fields.filter(f => !f.calc && !(sek && (f.k === ent.scope || f.adm)) && !((V.id === 'rombel' || V.id === 'guru') && f.k === 'jenjang'));
   const hasGeo = flds.some(f => f.k === 'lat') && flds.some(f => f.k === 'lng');
-  let body = flds.map(f => fieldWrap(f, isNew ? (f.def || '') : r[f.k], f.t === 'password' ? isNew : f.r)).join('');
+  let body = (ent.pick ? pickerHTML() : '') + flds.map(f => fieldWrap(f, isNew ? (f.def || '') : r[f.k], f.t === 'password' ? isNew : f.r)).join('');
   if (hasGeo) body += geoBtn();
   const m = modal((isNew ? 'Tambah ' : 'Ubah ') + ent.title, `<div class="fg">${body}</div>`, async mm => {
     const data = isNew ? {} : { id: r.id };
@@ -504,6 +504,7 @@ function openForm(rec) {
     await V.reload();
   });
   bindGeo(m);
+  if (ent.pick) bindPicker(m, ent);
   if (V.id === 'users') {
     const rs = $('#f_role', m), t = () => { $('#w_npsn_sekolah', m).style.display = rs.value === 'sekolah' ? '' : 'none'; };
     rs.onchange = t; t();
@@ -517,6 +518,47 @@ function openForm(rec) {
     };
   }
 }
+/* ---------- cari pegawai/guru -> profil terisi otomatis ---------- */
+function pickerHTML() {
+  return `<div class="full" id="pk"><label for="pkq">Cari pegawai / guru (ketik nama, NIP, atau NIK)</label>
+    <input id="pkq" type="search" autocomplete="off" placeholder="Ketik minimal 2 huruf nama…">
+    <div id="pkr" class="tw" style="max-height:230px;display:none;margin-top:6px"></div>
+    <div id="pki" class="mu" style="font-size:12px;margin-top:4px">Pilih dari hasil pencarian agar profil terisi otomatis (masih bisa diubah). Jika tidak ditemukan, isi manual di bawah.</div></div>`;
+}
+function bindPicker(m, ent) {
+  const q = $('#pkq', m), box = $('#pkr', m), info = $('#pki', m);
+  let timer = 0, seq = 0, rows = [];
+  const fill = p => {
+    Object.keys(ent.pick).forEach(fk => {
+      const el = $('#f_' + fk, m), val = p[ent.pick[fk]] || '';
+      if (!el || (val === '' && fk !== 'nama')) return;
+      if (el.tagName === 'SELECT') { if ([...el.options].some(o => o.value === val)) el.value = val; }
+      else el.value = val;
+    });
+    info.innerHTML = `Terisi dari <b>${esc(p.src)}</b>: ${esc(p.nama)}. Periksa kembali isiannya, lalu simpan.`;
+    box.style.display = 'none'; q.value = '';
+  };
+  q.oninput = () => {
+    clearTimeout(timer);
+    const v = q.value.trim();
+    if (v.length < 2) { box.style.display = 'none'; return; }
+    timer = setTimeout(async () => {
+      const my = ++seq;
+      box.style.display = ''; box.innerHTML = '<div class="mu" style="padding:8px">Mencari…</div>';
+      try {
+        const r = await api('cari', { entity: V.id, q: v });
+        if (my !== seq) return;
+        rows = r.rows;
+        box.innerHTML = rows.length
+          ? `<table><tbody>${rows.map((p, i) => `<tr><td><b>${esc(p.nama)}</b><br><span class="mu">${esc(p.nip || p.nik || p.nuptk || 'tanpa NIP')} · ${esc(p.src)}${p.info ? ' · ' + esc(p.info) : ''}</span></td><td>${esc(p.jabatan)}<br><span class="mu">${esc(p.unit)}</span></td><td><button type="button" class="btn sm" data-i="${i}">Pilih</button></td></tr>`).join('')}</tbody></table>`
+          : '<div class="empty">Tidak ditemukan. Isi data secara manual di bawah.</div>';
+      } catch (e) { if (my === seq) box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+    }, 300);
+  };
+  q.onkeydown = e => { if (e.key === 'Enter') e.preventDefault(); };
+  box.onclick = e => { const b = e.target.closest('button[data-i]'); if (b) fill(rows[Number(b.dataset.i)]); };
+}
+
 function exportCSV() {
   const fl = V.ent.fields.filter(f => !f.v), list = filtered();
   const q = v => { v = String(v == null ? '' : v); if (/^[=+\-@]/.test(v) && isNaN(Number(v))) v = "'" + v; return '"' + v.replace(/"/g, '""') + '"'; };
@@ -541,13 +583,13 @@ const ALIAS = {
   jumlah_siswa: ['jumlah siswa', 'jml siswa', 'jumlah anggota rombel', 'anggota rombel', 'jumlah peserta didik', 'peserta didik'],
   lat: ['lintang', 'latitude', 'lat'], lng: ['bujur', 'longitude', 'lng', 'long'],
   akreditasi: ['akreditasi'],
-  nip: ['nip', 'nip nuptk', 'nuptk'], nuptk: ['nuptk'],
+  nip: ['nip', 'nip nuptk'], nuptk: ['nuptk'], nik: ['nik'],
   jenis_kelamin: ['jenis kelamin', 'jk', 'l p'],
-  jabatan: ['jabatan', 'jabatan ptk'], golongan: ['pangkat golongan', 'golongan', 'pangkat', 'gol'],
+  jabatan: ['jabatan', 'jabatan ptk'], golongan: ['pangkat golongan', 'pangkat gol', 'golongan', 'pangkat', 'gol'],
   unit_kerja: ['unit kerja', 'bidang unit kerja', 'bidang'],
   status: ['status kepegawaian', 'status pegawai', 'status kepegawaian id str', 'status'],
   no_hp: ['no hp', 'nomor hp', 'hp', 'no handphone', 'nomor handphone', 'telepon', 'nomor telepon', 'no telepon'],
-  mapel: ['mata pelajaran', 'mapel', 'bidang studi', 'mata pelajaran diajarkan', 'jenis ptk'],
+  mapel: ['mata pelajaran diajarkan', 'mata pelajaran', 'mapel'],
   pendidikan: ['pendidikan terakhir', 'pendidikan', 'jenjang pendidikan'],
   tmt_tugas: ['tanggal surat tugas', 'tmt tugas', 'tmt', 'tanggal tugas'],
   status_kepsek: ['status jabatan', 'status kepsek'], no_sk: ['nomor sk', 'no sk', 'sk'], tmt: ['tmt jabatan', 'tmt', 'tmt sk'],
@@ -560,7 +602,7 @@ const ALIAS_ENT = { sekolah: { nama: ['nama sekolah', 'nama', 'nama satuan pendi
 function colName(i) { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
 function normDate(v) {
   v = String(v || '').trim(); let m;
-  if ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(v))) return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+  if ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(v))) return Number(m[1]) < 1901 ? '' : m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
   if ((m = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/.exec(v))) return m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
   return '';
 }
@@ -582,8 +624,8 @@ async function openImport() {
   const dateKeys = new Set(fields.filter(f => f.t === 'date').map(f => f.k));
   const targets = fields.map(f => ({ k: f.k, l: f.l, r: f.r, t: f.t }))
     .concat(refF ? [{ k: '_sekolah_nama', l: 'Nama Sekolah (untuk mencari sekolah bila tidak ada kolom NPSN)' }] : [])
-    .concat(id === 'guru' ? [{ k: 'nuptk', l: 'NUPTK (dipakai bila NIP kosong)' }] : []);
-  const KEYTXT = { sekolah: 'NPSN', guru: 'NIP (atau nama + sekolah bila NIP kosong)', kepsek: 'sekolah (satu kepala sekolah per sekolah)', pegawai: 'NIP', rombel: 'NPSN + nama rombel + tahun ajaran' }[id] || 'kunci data';
+;
+  const KEYTXT = { sekolah: 'NPSN', guru: 'NIK (bila kosong: NIP/NUPTK, atau nama + tanggal lahir + sekolah). Satu orang yang bertugas di dua sekolah (Induk & Non Induk) tersimpan sebagai dua baris', kepsek: 'sekolah (satu kepala sekolah per sekolah)', pegawai: 'NIP', rombel: 'NPSN + nama rombel + tahun ajaran' }[id] || 'kunci data';
   const aliasOf = t => ((ALIAS_ENT[id] || {})[t.k] || ALIAS[t.k] || []).map(NORM).concat([NORM(t.l)]);
   const st = { wb: null, sheet: '', grid: [], hdr: 0, map: {}, dirty: false };
 
@@ -601,7 +643,7 @@ async function openImport() {
   $('.x', m).onclick = close; $('#icl', m).onclick = close;
 
   $('#itpl', m).onclick = () => {
-    const head = targets.filter(t => t.k[0] !== '_' && t.k !== 'nuptk').map(t => t.t === 'ref' ? 'NPSN Sekolah' : t.l);
+    const head = targets.filter(t => t.k[0] !== '_').map(t => t.t === 'ref' ? 'NPSN Sekolah' : t.l);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([head]), 'Data');
     XLSX.writeFile(wb, 'template-' + id + '.xlsx');
@@ -625,7 +667,7 @@ async function openImport() {
     const o = {};
     targets.forEach(t => {
       const c = st.map[t.k];
-      if (c >= 0) { let v = String(r[c] == null ? '' : r[c]).trim(); if (dateKeys.has(t.k)) v = normDate(v); o[t.k] = v; }
+      if (c >= 0) { let v = String(r[c] == null ? '' : r[c]).replace(/[\u200b-\u200f\u202a-\u202e\u2060\ufeff]/g, '').trim(); if (/^(null|nan|undefined)$/i.test(v)) v = ''; if (dateKeys.has(t.k)) v = normDate(v); o[t.k] = v; }
     });
     return o;
   };
@@ -641,7 +683,7 @@ async function openImport() {
 
   const renderPrev = () => {
     const rows = dataRows(), cols = targets.filter(t => st.map[t.k] >= 0), sci = [];
-    ['nip', 'npsn', 'nuptk', 'npsn_sekolah'].forEach(k => { if (rows.some(r => /e\+/i.test(r[k] || ''))) sci.push(k.toUpperCase()); });
+    ['nip', 'nik', 'npsn', 'nuptk', 'npsn_sekolah'].forEach(k => { if (rows.some(r => /e\+/i.test(r[k] || ''))) sci.push(k.toUpperCase()); });
     $('#iprev', m).innerHTML = (sci.length ? `<div class="msg">Kolom ${sci.join(', ')} berisi angka berbentuk ilmiah (contoh 1.98E+17), sehingga digitnya sudah hilang. Ubah kolom itu menjadi format <b>Teks</b> di Excel (atau ambil ulang dari Dapodik), simpan, lalu unggah ulang.</div>` : '')
       + (rows.length ? `<div class="tw"><table><thead><tr><th>Baris</th>${cols.map(t => `<th>${esc(t.l)}</th>`).join('')}</tr></thead><tbody>${rows.slice(0, 5).map(r => `<tr><td>${r._n}</td>${cols.map(t => `<td>${esc(r[t.k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div><div class="mu" style="margin-top:6px">${rows.length} baris data akan diproses (5 baris pertama ditampilkan).</div>` : '<div class="empty">Tidak ada baris data di bawah baris judul.</div>');
     $('#irun', m).disabled = !rows.length || sci.length > 0;
@@ -714,11 +756,11 @@ async function openImport() {
 async function pageLokasi() {
   const ent = S.schema.sekolah; $('#ttl').textContent = 'Lokasi Sekolah';
   $('#view').innerHTML = '<div class="card mu">Memuat…</div>';
-  const rows = (await api('list', { entity: 'sekolah' })).rows;
+  const rows = (await api('list', { entity: 'sekolah' })).rows.filter(r => r.status_sekolah === 'Negeri');   // hanya sekolah negeri
   V = { id: 'sekolah', ent, rows, q: '', flt: {}, page: 1, reload: pageLokasi };
   $('#view').innerHTML = `<div class="card"><div class="tools"><input id="q" type="search" placeholder="Cari sekolah / kecamatan…">
     <select id="jf"><option value="">Semua Jenjang</option>${['TK', 'SD', 'SMP'].map(j => `<option>${j}</option>`).join('')}</select>
-    <div class="sp"></div><span class="mu">${['TK', 'SD', 'SMP'].map(j => `<span class="dot" style="background:${COL[j]}"></span>${j}`).join('')}</span></div>
+    <div class="sp"></div><span class="mu">Hanya sekolah negeri · ${['TK', 'SD', 'SMP'].map(j => `<span class="dot" style="background:${COL[j]}"></span>${j}`).join('')}</span></div>
     <div id="map"></div><div id="ltbl"></div></div>`;
   const draw = () => {
     const q = $('#q').value.toLowerCase(), jf = $('#jf').value;
@@ -728,7 +770,7 @@ async function pageLokasi() {
       const ok = isFinite(parseFloat(r.lat)) && isFinite(parseFloat(r.lng)) && r.lat !== '' && r.lng !== '';
       return `<tr><td>${esc(r.nama)}</td><td>${cell({ t: 'select' }, r.jenjang)}</td><td>${esc(r.kecamatan)}</td><td>${ok ? esc(r.lat + ', ' + r.lng) : '<span class="mu">belum diisi</span>'}</td>
       <td class="act">${ok ? `<a class="btn sm sec" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${encodeURIComponent(r.lat + ',' + r.lng)}">Google Maps</a> ` : ''}${ent.ops.includes('update') ? `<button class="btn sm sec" data-id="${esc(r.id)}">Ubah lokasi</button>` : ''}</td></tr>`;
-    }).join('')}</tbody></table></div>` : '<div class="empty">Tidak ada data.</div>';
+    }).join('')}</tbody></table></div>` : '<div class="empty">Tidak ada sekolah negeri yang cocok. Pastikan kolom Status Sekolah di Data Sekolah sudah terisi \"Negeri\".</div>';
   };
   $('#q').oninput = draw; $('#jf').onchange = draw;
   $('#ltbl').onclick = e => { const b = e.target.closest('button[data-id]'); if (b) openForm(rows.find(r => r.id === b.dataset.id)); };
