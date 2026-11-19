@@ -464,7 +464,7 @@ function applyTheme(theme) {
 /* ---------- kebutuhan guru: dihitung otomatis dari data rombel ---------- */
 const fnum = n => String(Math.round((Number(n) || 0) * 10) / 10).replace('.', ',');
 const taNow = () => { const d = new Date(), y = d.getFullYear(), a = d.getMonth() >= 6 ? y : y - 1; return a + '/' + (a + 1); };
-const K = { jenjang: 'SD', tahun: '', hitung: 'semua', q: '', st: '', d: null };
+const K = { jenjang: 'SD', tahun: '', hitung: 'asn', q: '', st: '', d: null };
 const HITUNG = { semua: 'Semua guru terdata', asn: 'PNS + PPPK (tanpa paruh waktu)' };
 const STFLT = { '': 'Semua status', kurang: 'Ada kekurangan guru', lebih: 'Ada kelebihan guru', sesuai: 'Sudah sesuai', kosong: 'Rombel belum diisi' };
 const stOk = (r, f) => !f || (f === 'kurang' && r.kurang > 0) || (f === 'lebih' && r.lebih > 0) || (f === 'sesuai' && r.status === 'Sesuai') || (f === 'kosong' && !r.ada_rombel);
@@ -512,7 +512,7 @@ function drawK() {
     <select id="khit">${Object.keys(HITUNG).map(k => `<option value="${k}"${k === K.hitung ? ' selected' : ''}>${HITUNG[k]}</option>`).join('')}</select>
     <div class="sp"></div>
     <button class="btn sec" id="kp1">Cetak Rekap</button><button class="btn sec" id="kp2">Cetak + Rincian Sekolah</button><button class="btn sec" id="kcsv">Ekspor CSV</button></div>
-    <p class="mu" style="margin:10px 0 0">${esc(ktitle())} · Hanya sekolah negeri (TKN/TK Negeri, SDN/SD Negeri, SMPN/SMP Negeri) · Guru yang dihitung: ${esc(HITUNG[K.hitung])}</p></div>
+    <p class="mu" style="margin:10px 0 0">${esc(ktitle())} · Hanya sekolah negeri · Hanya guru status PNS, PPPK, dan PPPK Paruh Waktu</p></div>
   <div class="cards">
     <div class="stat"><b>${t.sekolah_rombel}<small class="mu"> / ${t.sekolah}</small></b>Sekolah (ada rombel / seluruhnya)</div>
     <div class="stat"><b>${t.rombel}</b>Rombel · ${t.siswa} siswa</div>
