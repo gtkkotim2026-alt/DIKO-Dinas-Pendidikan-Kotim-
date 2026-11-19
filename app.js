@@ -426,13 +426,13 @@ const kSafe = async fn => { try { await fn(); } catch (e) { toast(e.message, 'er
 
 function kList() {
   const q = K.q.toLowerCase();
-  const isNegeri = nama => {
-    const n = (nama || '').toUpperCase();
-    return /\b(TKN|TK\s*NEGERI|SDN|SD\s*NEGERI|SMPN|SMP\s*NEGERI)\b/.test(n) || 
-           n.includes('NEGERI') && (n.includes('TK') || n.includes('SD') || n.includes('SMP'));
+  const isNegeri = r => {
+    if (r.status_sekolah) return String(r.status_sekolah).toLowerCase().includes('negeri');
+    const n = (r.nama || '').toUpperCase();
+    return /\b(TKN|TK\s*NEGERI|SDN|SD\s*NEGERI|SMPN|SMP\s*NEGERI|NEGERI)\b/.test(n);
   };
   return K.d.rows
-    .filter(r => isNegeri(r.nama) && stOk(r, K.st) && (!q || (r.nama + ' ' + r.npsn + ' ' + r.kecamatan).toLowerCase().includes(q)))
+    .filter(r => isNegeri(r) && stOk(r, K.st) && (!q || (r.nama + ' ' + r.npsn + ' ' + r.kecamatan).toLowerCase().includes(q)))
     .sort((a, b) => b.kurang - a.kurang || String(a.kecamatan).localeCompare(b.kecamatan) || String(a.nama).localeCompare(b.nama));
 }
 
