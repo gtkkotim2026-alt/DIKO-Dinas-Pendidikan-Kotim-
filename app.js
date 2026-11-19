@@ -195,10 +195,10 @@ function authGuru() {
     if ($('#g_pw').value !== $('#g_pw2').value) { ge.hidden = false; ge.textContent = 'Password tidak sama'; return; }
     const b = $('.btn', f); b.disabled = true;
     try {
-      // Note: backend needs to support 'registerGuru' or similar. For now call a placeholder.
-      await api('registerGuru', { nip: $('#g_nip').value, email: $('#g_email').value, password: $('#g_pw').value });
-      authLogin('Pendaftaran guru terkirim. Tunggu verifikasi atau cek email.');
-    } catch (er) { ge.hidden = false; ge.textContent = er.message || 'Fitur ini membutuhkan dukungan backend.'; b.disabled = false; }
+      const r = await api('registerGuru', { nip: $('#g_nip').value, email: $('#g_email').value, password: $('#g_pw').value });
+      $$('.tabs button')[0].click();
+      authLogin(r.pesan || 'Pendaftaran guru berhasil. Login dengan NIP sebagai username.');
+    } catch (er) { ge.hidden = false; ge.textContent = er.message; b.disabled = false; }
   };
 }
 
