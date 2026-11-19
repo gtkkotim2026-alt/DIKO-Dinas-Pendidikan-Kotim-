@@ -8,7 +8,7 @@ const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const ROLE = { superadmin: 'Super Admin', pengguna: 'Pengguna', sekolah: 'Sekolah' };
+const ROLE = { superadmin: 'Super Admin', pengguna: 'Pengguna', sekolah: 'Sekolah', guru: 'Guru' };
 const COL = { TK: '#f79009', SD: '#1b5fc4', SMP: '#12805c' };
 const MENU = [
   { id: 'portal_guru', t: 'Portal Guru', ico: '📱' },
@@ -261,7 +261,7 @@ function init(r) {
   $('#out').onclick = () => doLogout(false);
   $('#pw').onclick = openPw;
   $('#wa').onclick = openWa;
-  const isGuru = S.user.role === 'pengguna' && /^\d{8,}$/.test(S.user.username || '');
+  const isGuru = S.user.role === 'guru';
   const allowed = id => {
     if (isGuru) return id === 'portal_guru' || id === 'mutasi' || id === 'mediasi';
     return id === 'dashboard' || (id === 'lokasi' ? !!S.schema.sekolah : id === 'kebutuhan' ? !!S.schema.rombel : !!S.schema[id]);
