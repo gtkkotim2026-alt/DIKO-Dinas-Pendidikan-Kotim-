@@ -117,11 +117,27 @@ function bindShow(root) {
 /* ---------- login / daftar ---------- */
 function showLogin() {
   S.token = null; S.user = null;
-  $('#root').innerHTML = `<div class="auth"><div class="card authbox"><h2>${esc(CFG.APP_NAME || 'SIM Disdik')}</h2><div class="mu">${esc(CFG.APP_SUB || '')}</div>
-    <div class="tabs"><button class="on" data-t="l">Masuk</button><button data-t="r">Daftar Sekolah</button></div><div id="ab"></div></div></div>`;
+  $('#root').innerHTML = `<div class="auth-modern">
+    <div class="auth-left">
+      <div class="auth-illustration">
+        <div class="logo-big">DIKO</div>
+        <p>Sistem Informasi Terintegrasi<br>Tata Kelola Guru & Tenaga Kependidikan</p>
+      </div>
+    </div>
+    <div class="auth-right">
+      <div class="card authbox">
+        <h2>Login</h2>
+        <div class="mu">Masukkan username dan password</div>
+        <div class="tabs"><button class="on" data-t="l">Masuk</button><button data-t="r">Daftar Sekolah</button><button data-t="g">Daftar Guru</button></div>
+        <div id="ab"></div>
+      </div>
+    </div>
+  </div>`;
   $$('.tabs button').forEach(b => b.onclick = () => {
     $$('.tabs button').forEach(x => x.classList.toggle('on', x === b));
-    b.dataset.t === 'l' ? authLogin() : authReg();
+    if (b.dataset.t === 'l') authLogin();
+    else if (b.dataset.t === 'r') authReg();
+    else authGuru();
   });
   authLogin();
 }
@@ -158,6 +174,34 @@ function authReg() {
     catch (er) { re.hidden = false; re.textContent = er.message; b.disabled = false; }
   };
 }
+function authGuru() {
+  $('#ab').innerHTML = `<form id="gf" novalidate>
+    <p class="mu">Pendaftaran akun Guru. Masukkan NIP dan Email. Data akan dicocokkan otomatis jika sudah ada di sistem.</p>
+    <div class="fg">
+      <div class="full"><label>NIP <i>*</i></label><input id="g_nip" required pattern="[0-9]{8,18}" placeholder="NIP (angka)"></div>
+      <div class="full"><label>Email <i>*</i></label><input id="g_email" type="email" required></div>
+      <div class="full"><label>Foto Profil (opsional)</label><input id="g_foto" type="file" accept="image/*"></div>
+      <div><label>Password <i>*</i></label><input id="g_pw" type="password" data-pw minlength="8" required></div>
+      <div><label>Ulangi Password <i>*</i></label><input id="g_pw2" type="password" data-pw minlength="8" required></div>
+    </div>
+    <div id="ge" class="msg" hidden></div>
+    <p><button class="btn" style="width:100%">Daftar sebagai Guru</button></p>
+  </form>`;
+  bindShow($('#gf'));
+  $('#gf').onsubmit = async e => {
+    e.preventDefault();
+    const f = e.target; if (!f.checkValidity()) { f.reportValidity(); return; }
+    const ge = $('#ge'); ge.hidden = true;
+    if ($('#g_pw').value !== $('#g_pw2').value) { ge.hidden = false; ge.textContent = 'Password tidak sama'; return; }
+    const b = $('.btn', f); b.disabled = true;
+    try {
+      // Note: backend needs to support 'registerGuru' or similar. For now call a placeholder.
+      await api('registerGuru', { nip: $('#g_nip').value, email: $('#g_email').value, password: $('#g_pw').value });
+      authLogin('Pendaftaran guru terkirim. Tunggu verifikasi atau cek email.');
+    } catch (er) { ge.hidden = false; ge.textContent = er.message || 'Fitur ini membutuhkan dukungan backend.'; b.disabled = false; }
+  };
+}
+
 function authForgot(un) {
   $('#ab').innerHTML = `<form id="ff"><p class="mu">Masukkan username Anda (untuk sekolah: NPSN). Kode OTP akan dikirim lewat WhatsApp ke nomor yang terdaftar pada akun.</p>
     <div><label for="fu">Username</label><input id="fu" value="${esc(un || '')}" autocomplete="username" required></div>
@@ -204,7 +248,7 @@ function init(r) {
   S.user = r.user; S.schema = r.schema; S.refs = r.refs;
   $('#root').innerHTML = `<div class="app"><aside id="side"><div class="brand">${esc(CFG.APP_NAME || 'SIM Disdik')}<small>${esc(S.user.sekolah_nama || CFG.APP_SUB || '')}</small></div><nav id="nav"></nav></aside>
     <div class="main"><header><button class="btn sec sm" id="burger" aria-label="Menu">☰</button><h1 id="ttl"></h1><div class="sp"></div>
-    <span class="who">${esc(S.user.nama)} <span class="badge">${ROLE[S.user.role]}</span></span>
+    <span class="who"><img src="${S.user.foto || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(S.user.nama) + '&background=1a56db&color=fff&size=32'}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;vertical-align:middle" alt="">${esc(S.user.nama)} <span class="badge">${ROLE[S.user.role]}</span></span>
     <button class="btn sec sm" id="wa">No. WA</button><button class="btn sec sm" id="pw">Ubah Password</button><button class="btn sec sm" id="out">Keluar</button></header><main id="view"></main></div></div><div id="scrim"></div>`;
   $('#burger').onclick = () => document.body.classList.toggle('nav-open');
   $('#scrim').onclick = () => document.body.classList.remove('nav-open');
@@ -255,27 +299,43 @@ function openWa() {
 /* ---------- dashboard ---------- */
 async function pageDash() {
   $('#ttl').textContent = 'Dashboard'; $('#view').innerHTML = '<div class="card mu">Memuat…</div>';
-  const st = await api('stats'), keys = Object.keys(st.counts);
+  const st = await api('stats');
   const now = new Date();
   let h = `<div class="dash-welcome">
     <div>
-      <div class="eyebrow">DASHBOARD</div>
+      <div class="eyebrow">DASHBOARD DIKO</div>
       <h2>Selamat datang${S.user.role === 'sekolah' ? ', ' + esc(S.user.sekolah_nama || S.user.nama) : ''}</h2>
       <p>Sistem Informasi Terintegrasi Tata Kelola Guru & Tenaga Kependidikan</p>
     </div>
     <div class="dash-date">HARI INI<br><b>${now.getDate()}</b><br>${now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</div>
   </div>`;
   if (st.menunggu) h += `<a class="stat wr" href="#/pendaftaran" style="margin-bottom:20px;display:block"><b>${st.menunggu}</b>Pendaftaran sekolah menunggu verifikasi</a>`;
-  h += `<div class="dash-section"><div class="section-heading"><h3>Ringkasan Data</h3><p class="mu">Klik kartu untuk membuka menu</p></div><div class="dash-kpis">`;
-  keys.filter(k => k !== 'pendaftaran').forEach(k => {
-    h += `<a class="kpi-card" href="#/${k}" style="text-decoration:none;color:inherit"><div class="kpi-icon">📊</div><div><b>${st.counts[k]}</b><small>${esc(S.schema[k].title)}</small></div></a>`;
-  });
-  h += `</div></div>`;
+
+  // Big KPI cards like Satu Data
+  const sekolah = st.counts.sekolah || 0;
+  const guru = st.counts.guru || 0;
+  const tendik = st.counts.pegawai || 0;
+  h += `<div class="dash-kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+    <div class="kpi-card"><div class="kpi-icon">🏫</div><div><b>${sekolah.toLocaleString('id')}</b><small>Sekolah</small></div></div>
+    <div class="kpi-card"><div class="kpi-icon">👨‍🎓</div><div><b>${(st.total_siswa || 0).toLocaleString('id')}</b><small>Peserta Didik</small></div></div>
+    <div class="kpi-card"><div class="kpi-icon">👨‍🏫</div><div><b>${guru.toLocaleString('id')}</b><small>Guru</small></div></div>
+    <div class="kpi-card"><div class="kpi-icon">💼</div><div><b>${tendik.toLocaleString('id')}</b><small>Tendik</small></div></div>
+  </div>`;
+
+  // Table rekap by jenjang (placeholder style)
+  h += `<div class="card"><h3>Rekap Data per Jenjang</h3>
+    <div class="tw"><table><thead><tr><th>Jenjang</th><th>Sekolah</th><th>Guru</th><th>Aksi</th></tr></thead><tbody>
+      <tr><td>TK</td><td>${st.jenjang?.TK || '-'}</td><td>${st.guru_jenjang?.TK || '-'}</td><td><a class="btn sm sec" href="#/sekolah">Detail</a></td></tr>
+      <tr><td>SD</td><td>${st.jenjang?.SD || '-'}</td><td>${st.guru_jenjang?.SD || '-'}</td><td><a class="btn sm sec" href="#/sekolah">Detail</a></td></tr>
+      <tr><td>SMP</td><td>${st.jenjang?.SMP || '-'}</td><td>${st.guru_jenjang?.SMP || '-'}</td><td><a class="btn sm sec" href="#/sekolah">Detail</a></td></tr>
+    </tbody></table></div>
+  </div>`;
+
   if (S.schema.rombel && st.kek) {
     h += `<div class="dash-section"><div class="section-heading"><h3>Kebutuhan Guru</h3><a class="text-link" href="#/kebutuhan">Lihat analisis →</a></div><div class="dash-kpis">`;
     ['TK', 'SD', 'SMP'].forEach(j => {
       const x = st.kek[j] || { kurang: 0, lebih: 0 };
-      h += `<div class="kpi-card"><div class="kpi-icon" style="background:#fef3c7;color:#d97706">👨‍🏫</div><div><b style="color:var(--er)">${fnum(x.kurang)}</b><small>Guru kurang — ${j}<br>Lebih: ${fnum(x.lebih)}</small></div></div>`;
+      h += `<div class="kpi-card"><div class="kpi-icon" style="background:#fef3c7;color:#d97706">📊</div><div><b style="color:var(--er)">${fnum(x.kurang)}</b><small>Guru kurang — ${j}</small></div></div>`;
     });
     h += `</div></div>`;
   }
@@ -665,6 +725,8 @@ const ALIAS = {
   tmt_tugas: ['tanggal surat tugas', 'tmt tugas', 'tmt', 'tanggal tugas'],
   status_kepsek: ['status jabatan', 'status kepsek'], no_sk: ['nomor sk', 'no sk', 'sk'], tmt: ['tmt jabatan', 'tmt', 'tmt sk'],
   nama_rombel: ['nama rombel', 'nama rombongan belajar', 'rombel', 'rombongan belajar', 'nama kelas'],
+  jumlah_rombel: ['jumlah rombel', 'jml rombel', 'jumlah rombongan belajar'],
+  jumlah_siswa: ['jumlah siswa', 'jml siswa', 'jumlah anggota rombel', 'anggota rombel', 'jumlah peserta didik', 'peserta didik', 'pd_total', 'pd total', 'total pd', 'jumlah pd'],
   tingkat: ['tingkat', 'tingkat pendidikan', 'tingkat kelas', 'kelas'],
   tahun_ajaran: ['tahun ajaran', 'tahun pelajaran'],
   _sekolah_nama: ['nama sekolah', 'sekolah', 'satuan pendidikan', 'nama satuan pendidikan']
@@ -803,7 +865,27 @@ async function openImport() {
     const ta = id === 'rombel' ? $('#ita', m).value.trim() : '';
     const miss = targets.filter(t => t.r && st.map[t.k] < 0 && !(t.t === 'ref' && (def || st.map._sekolah_nama >= 0)) && !(t.k === 'tahun_ajaran' && ta));
     if (miss.length) return toast('Kolom wajib belum dipetakan: ' + miss.map(t => t.l.replace(/ \(.*/, '')).join(', '), 'er');
-    const rows = dataRows(), tot = { baru: 0, upd: 0, sama: 0, gagal: 0 }, errs = [];
+    let rows = dataRows(), tot = { baru: 0, upd: 0, sama: 0, gagal: 0 }, errs = [];
+    // Special for rombel: expand Jumlah Rombel into individual records
+    if (id === 'rombel' && rows.some(r => r.jumlah_rombel)) {
+      const expanded = [];
+      rows.forEach(r => {
+        const n = Math.max(1, parseInt(r.jumlah_rombel, 10) || 1);
+        const totalSiswa = parseInt(r.jumlah_siswa || r.pd_total || 0, 10) || 0;
+        const per = Math.floor(totalSiswa / n);
+        const rem = totalSiswa % n;
+        for (let k = 0; k < n; k++) {
+          const nr = Object.assign({}, r);
+          nr.nama_rombel = 'Rombel ' + (k + 1);
+          nr.jumlah_siswa = String(per + (k < rem ? 1 : 0));
+          nr.tingkat = nr.tingkat || '';
+          delete nr.jumlah_rombel;
+          expanded.push(nr);
+        }
+      });
+      rows = expanded;
+      toast('Mode rekap: ' + rows.length + ' rombel dibuat dari jumlah rombel', 'ok');
+    }
     $('#irun', m).disabled = true; $('#ifile', m).disabled = true;
     try {
       for (let i = 0; i < rows.length; i += 200) {
