@@ -819,10 +819,14 @@ async function openImport() {
   const fields = ent.fields.filter(f => !f.v && !f.calc);
   const refF = fields.find(f => f.t === 'ref');
   const dateKeys = new Set(fields.filter(f => f.t === 'date').map(f => f.k));
-  const targets = fields.map(f => ({ k: f.k, l: f.l, r: f.r, t: f.t }))
-    .concat(refF ? [{ k: '_sekolah_nama', l: 'Nama Sekolah (untuk mencari sekolah bila tidak ada kolom NPSN)' }] : [])
-;
-  const KEYTXT = { sekolah: 'NPSN', guru: 'NIK (bila kosong: NIP/NUPTK, atau nama + tanggal lahir + sekolah). Satu orang yang bertugas di dua sekolah (Induk & Non Induk) tersimpan sebagai dua baris', kepsek: 'sekolah (satu kepala sekolah per sekolah)', pegawai: 'NIP', rombel: 'NPSN + nama rombel + tahun ajaran' }[id] || 'kunci data';
+  let targets = fields.map(f => ({ k: f.k, l: f.l, r: f.r, t: f.t }));
+  if (id === 'rombel') {
+    // Replace Nama Rombel with Jumlah Rombel for rekap import
+    targets = targets.filter(t => t.k !== 'nama_rombel');
+    targets.push({ k: 'jumlah_rombel', l: 'Jumlah Rombel', r: 1, t: 'number' });
+  }
+  targets = targets.concat(refF ? [{ k: '_sekolah_nama', l: 'Nama Sekolah (untuk mencari sekolah bila tidak ada kolom NPSN)' }] : []);
+  const KEYTXT = { sekolah: 'NPSN', guru: 'NIK (bila kosong: NIP/NUPTK, atau nama + tanggal lahir + sekolah). Satu orang yang bertugas di dua sekolah (Induk & Non Induk) tersimpan sebagai dua baris', kepsek: 'sekolah (satu kepala sekolah per sekolah)', pegawai: 'NIP', rombel: 'NPSN + jumlah rombel + tahun ajaran (format rekap 1 baris per sekolah)' }[id] || 'kunci data';
   const aliasOf = t => ((ALIAS_ENT[id] || {})[t.k] || ALIAS[t.k] || []).map(NORM).concat([NORM(t.l)]);
   const st = { wb: null, sheet: '', grid: [], hdr: 0, map: {}, dirty: false };
 
