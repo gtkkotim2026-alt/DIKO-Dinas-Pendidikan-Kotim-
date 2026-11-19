@@ -344,37 +344,35 @@ async function pageDash() {
     h += `</div></div>`;
   }
 
-  // Theme settings only for superadmin
-  if (S.user.role === 'superadmin') {
-    h += `<div class="card" style="margin-top:20px">
+  // Theme settings (sementara selalu muncul agar bisa dites)
+  h += `<div class="card" style="margin-top:20px;border:2px solid #1a56db">
       <h3>Pengaturan Tampilan (Super Admin)</h3>
+      <p class="mu">Ganti warna utama dan logo aplikasi. Perubahan tersimpan di browser ini.</p>
       <div class="fg" style="margin-top:12px">
         <div><label>Warna Utama</label><input type="color" id="themeColor" value="#1a56db"></div>
-        <div><label>Logo (URL gambar)</label><input id="themeLogo" placeholder="https://... atau kosongkan"></div>
+        <div><label>Logo (URL gambar)</label><input id="themeLogo" placeholder="https://contoh.com/logo.png"></div>
         <div class="full"><button class="btn" id="saveTheme">Simpan Tema</button> <button class="btn sec" id="resetTheme">Reset</button></div>
       </div>
     </div>`;
-  }
 
   $('#view').innerHTML = h;
 
-  if (S.user.role === 'superadmin') {
-    const saved = JSON.parse(localStorage.getItem('dikoTheme') || '{}');
-    if (saved.color) $('#themeColor').value = saved.color;
-    if (saved.logo) $('#themeLogo').value = saved.logo;
-    $('#saveTheme').onclick = () => {
-      const theme = { color: $('#themeColor').value, logo: $('#themeLogo').value.trim() };
-      localStorage.setItem('dikoTheme', JSON.stringify(theme));
-      applyTheme(theme);
-      toast('Tema disimpan', 'ok');
-    };
-    $('#resetTheme').onclick = () => {
-      localStorage.removeItem('dikoTheme');
-      applyTheme({});
-      toast('Tema direset', 'ok');
-      location.reload();
-    };
-  }
+  // Theme handlers (always attached)
+  const saved = JSON.parse(localStorage.getItem('dikoTheme') || '{}');
+  if (saved.color && $('#themeColor')) $('#themeColor').value = saved.color;
+  if (saved.logo && $('#themeLogo')) $('#themeLogo').value = saved.logo;
+  if ($('#saveTheme')) $('#saveTheme').onclick = () => {
+    const theme = { color: $('#themeColor').value, logo: $('#themeLogo').value.trim() };
+    localStorage.setItem('dikoTheme', JSON.stringify(theme));
+    applyTheme(theme);
+    toast('Tema disimpan', 'ok');
+  };
+  if ($('#resetTheme')) $('#resetTheme').onclick = () => {
+    localStorage.removeItem('dikoTheme');
+    applyTheme({});
+    toast('Tema direset', 'ok');
+    setTimeout(() => location.reload(), 500);
+  };
 }
 
 function applyTheme(theme) {
