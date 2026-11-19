@@ -298,49 +298,103 @@ function openWa() {
 
 /* ---------- dashboard ---------- */
 async function pageDash() {
-  $('#ttl').textContent = 'Dashboard'; $('#view').innerHTML = '<div class="card mu">Memuat…</div>';
+  $('#ttl').textContent = 'Dashboard';
+  $('#view').innerHTML = '<div class="card mu">Memuat…</div>';
   const st = await api('stats');
   const now = new Date();
+
   let h = `<div class="dash-welcome">
     <div>
-      <div class="eyebrow">DASHBOARD DIKO</div>
-      <h2>Selamat datang${S.user.role === 'sekolah' ? ', ' + esc(S.user.sekolah_nama || S.user.nama) : ''}</h2>
-      <p>Sistem Informasi Terintegrasi Tata Kelola Guru & Tenaga Kependidikan</p>
+      <div class="eyebrow">DASHBOARD</div>
+      <h2>Sistem Satu Data Pendidikan</h2>
+      <p>Kabupaten — DIKO</p>
     </div>
     <div class="dash-date">HARI INI<br><b>${now.getDate()}</b><br>${now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</div>
   </div>`;
-  if (st.menunggu) h += `<a class="stat wr" href="#/pendaftaran" style="margin-bottom:20px;display:block"><b>${st.menunggu}</b>Pendaftaran sekolah menunggu verifikasi</a>`;
 
-  // Big KPI cards like Satu Data
-  const sekolah = st.counts.sekolah || 0;
-  const guru = st.counts.guru || 0;
-  const tendik = st.counts.pegawai || 0;
-  h += `<div class="dash-kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
-    <div class="kpi-card"><div class="kpi-icon">🏫</div><div><b>${sekolah.toLocaleString('id')}</b><small>Sekolah</small></div></div>
-    <div class="kpi-card"><div class="kpi-icon">👨‍🎓</div><div><b>${(st.total_siswa || 0).toLocaleString('id')}</b><small>Peserta Didik</small></div></div>
-    <div class="kpi-card"><div class="kpi-icon">👨‍🏫</div><div><b>${guru.toLocaleString('id')}</b><small>Guru</small></div></div>
-    <div class="kpi-card"><div class="kpi-icon">💼</div><div><b>${tendik.toLocaleString('id')}</b><small>Tendik</small></div></div>
-  </div>`;
+  if (st.menunggu) h += `<a class="stat wr" href="#/pendaftaran" style="margin-bottom:16px;display:block"><b>${st.menunggu}</b>Pendaftaran sekolah menunggu verifikasi</a>`;
 
-  // Table rekap by jenjang (placeholder style)
-  h += `<div class="card"><h3>Rekap Data per Jenjang</h3>
-    <div class="tw"><table><thead><tr><th>Jenjang</th><th>Sekolah</th><th>Guru</th><th>Aksi</th></tr></thead><tbody>
-      <tr><td>TK</td><td>${st.jenjang?.TK || '-'}</td><td>${st.guru_jenjang?.TK || '-'}</td><td><a class="btn sm sec" href="#/sekolah">Detail</a></td></tr>
-      <tr><td>SD</td><td>${st.jenjang?.SD || '-'}</td><td>${st.guru_jenjang?.SD || '-'}</td><td><a class="btn sm sec" href="#/sekolah">Detail</a></td></tr>
-      <tr><td>SMP</td><td>${st.jenjang?.SMP || '-'}</td><td>${st.guru_jenjang?.SMP || '-'}</td><td><a class="btn sm sec" href="#/sekolah">Detail</a></td></tr>
-    </tbody></table></div>
+  // Layout mirip Satu Data: 2 kolom
+  h += `<div style="display:grid;grid-template-columns:1.1fr 1fr;gap:16px;margin-bottom:20px">
+    <div>
+      <div class="dash-kpis" style="grid-template-columns:1fr 1fr;gap:12px">
+        <div class="kpi-card"><div class="kpi-icon" style="background:#dbeafe;color:#1d4ed8">🏫</div><div><b>${(st.counts.sekolah||0).toLocaleString('id')}</b><small>Sekolah</small></div></div>
+        <div class="kpi-card"><div class="kpi-icon" style="background:#dbeafe;color:#1d4ed8">👨‍🎓</div><div><b>${(st.total_siswa||0).toLocaleString('id')}</b><small>Peserta Didik</small></div></div>
+        <div class="kpi-card"><div class="kpi-icon" style="background:#dbeafe;color:#1d4ed8">👨‍🏫</div><div><b>${(st.counts.guru||0).toLocaleString('id')}</b><small>Guru</small></div></div>
+        <div class="kpi-card"><div class="kpi-icon" style="background:#dbeafe;color:#1d4ed8">💼</div><div><b>${(st.counts.pegawai||0).toLocaleString('id')}</b><small>Tendik</small></div></div>
+      </div>
+    </div>
+    <div class="card" style="margin:0">
+      <div class="tw"><table><thead><tr style="background:#0ea5e9;color:#fff"><th>#</th><th>Sekolah</th><th>Peserta Didik</th><th>Guru</th><th>Tendik</th><th>Aksi</th></tr></thead><tbody>
+        <tr><td>1</td><td>PAUD / TK</td><td>${st.jenjang?.TK||'-'}</td><td>-</td><td>-</td><td><a class="btn sm sec" href="#/sekolah">Detail</a></td></tr>
+        <tr><td>2</td><td>SD</td><td>${st.jenjang?.SD||'-'}</td><td>-</td><td>-</td><td><a class="btn sm sec" href="#/sekolah">Detail</a></td></tr>
+        <tr><td>3</td><td>SMP</td><td>${st.jenjang?.SMP||'-'}</td><td>-</td><td>-</td><td><a class="btn sm sec" href="#/sekolah">Detail</a></td></tr>
+        <tr style="font-weight:700;background:#f1f5f9"><td></td><td>TOTAL</td><td>${(st.counts.sekolah||0).toLocaleString('id')}</td><td>${(st.counts.guru||0).toLocaleString('id')}</td><td>${(st.counts.pegawai||0).toLocaleString('id')}</td><td></td></tr>
+      </tbody></table></div>
+    </div>
   </div>`;
 
   if (S.schema.rombel && st.kek) {
-    h += `<div class="dash-section"><div class="section-heading"><h3>Kebutuhan Guru</h3><a class="text-link" href="#/kebutuhan">Lihat analisis →</a></div><div class="dash-kpis">`;
-    ['TK', 'SD', 'SMP'].forEach(j => {
-      const x = st.kek[j] || { kurang: 0, lebih: 0 };
-      h += `<div class="kpi-card"><div class="kpi-icon" style="background:#fef3c7;color:#d97706">📊</div><div><b style="color:var(--er)">${fnum(x.kurang)}</b><small>Guru kurang — ${j}</small></div></div>`;
+    h += `<div class="dash-section"><div class="section-heading"><h3>Kebutuhan Guru</h3><a class="text-link" href="#/kebutuhan">Lihat analisis →</a></div>
+    <div class="dash-kpis">`;
+    ['TK','SD','SMP'].forEach(j => {
+      const x = st.kek[j] || {kurang:0, lebih:0};
+      h += `<div class="kpi-card"><div class="kpi-icon" style="background:#fef3c7;color:#d97706">📊</div><div><b style="color:var(--er)">${fnum(x.kurang)}</b><small>Kurang — ${j}</small></div></div>`;
     });
     h += `</div></div>`;
   }
+
+  // Theme settings only for superadmin
+  if (S.user.role === 'superadmin') {
+    h += `<div class="card" style="margin-top:20px">
+      <h3>Pengaturan Tampilan (Super Admin)</h3>
+      <div class="fg" style="margin-top:12px">
+        <div><label>Warna Utama</label><input type="color" id="themeColor" value="#1a56db"></div>
+        <div><label>Logo (URL gambar)</label><input id="themeLogo" placeholder="https://... atau kosongkan"></div>
+        <div class="full"><button class="btn" id="saveTheme">Simpan Tema</button> <button class="btn sec" id="resetTheme">Reset</button></div>
+      </div>
+    </div>`;
+  }
+
   $('#view').innerHTML = h;
+
+  if (S.user.role === 'superadmin') {
+    const saved = JSON.parse(localStorage.getItem('dikoTheme') || '{}');
+    if (saved.color) $('#themeColor').value = saved.color;
+    if (saved.logo) $('#themeLogo').value = saved.logo;
+    $('#saveTheme').onclick = () => {
+      const theme = { color: $('#themeColor').value, logo: $('#themeLogo').value.trim() };
+      localStorage.setItem('dikoTheme', JSON.stringify(theme));
+      applyTheme(theme);
+      toast('Tema disimpan', 'ok');
+    };
+    $('#resetTheme').onclick = () => {
+      localStorage.removeItem('dikoTheme');
+      applyTheme({});
+      toast('Tema direset', 'ok');
+      location.reload();
+    };
+  }
 }
+
+function applyTheme(theme) {
+  const root = document.documentElement;
+  if (theme.color) {
+    root.style.setProperty('--p', theme.color);
+    // update gradients roughly
+    document.querySelectorAll('.btn:not(.sec):not(.dan)').forEach(b => b.style.background = `linear-gradient(135deg, ${theme.color}, ${theme.color})`);
+  }
+  if (theme.logo) {
+    const brand = document.querySelector('.brand');
+    if (brand) brand.innerHTML = `<img src="${theme.logo}" style="height:32px;vertical-align:middle;margin-right:8px" alt="logo"> DIKO`;
+  }
+}
+
+// Apply saved theme on load
+(function(){
+  const saved = JSON.parse(localStorage.getItem('dikoTheme') || '{}');
+  if (saved.color || saved.logo) applyTheme(saved);
+})();
 
 /* ---------- kebutuhan guru: dihitung otomatis dari data rombel ---------- */
 const fnum = n => String(Math.round((Number(n) || 0) * 10) / 10).replace('.', ',');
