@@ -11,7 +11,7 @@ const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&a
 const ROLE = { superadmin: 'Super Admin', pengguna: 'Pengguna', sekolah: 'Sekolah' };
 const COL = { TK: '#f79009', SD: '#1b5fc4', SMP: '#12805c' };
 const MENU = [
-  { id: 'dashboard', t: 'Dashboard', ico: '📊' },
+  { id: 'portal_guru', t: 'Portal Guru', ico: '📱' },
   { id: 'pegawai', t: 'Pegawai Disdik', ico: '👥' },
   { g: 'Satuan Pendidikan', items: [
     { id: 'sekolah', t: 'Data Sekolah', ico: '🏫' }, { id: 'guru', t: 'Data Guru', ico: '👨‍🏫' }, { id: 'kepsek', t: 'Data Kepala Sekolah', ico: '👨‍💼' },
@@ -277,7 +277,7 @@ async function route() {
   $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.id === id));
   document.body.classList.remove('nav-open');
   if (MAP) { MAP.remove(); MAP = null; }
-  try { id === 'dashboard' ? await pageDash() : id === 'lokasi' ? await pageLokasi() : id === 'kebutuhan' ? await pageKebutuhan() : await pageEntity(id); }
+  try { id === 'dashboard' ? await pageDash() : id === 'portal_guru' ? await pagePortalGuru() : id === 'lokasi' ? await pageLokasi() : id === 'kebutuhan' ? await pageKebutuhan() : await pageEntity(id); }
   catch (e) { $('#view').innerHTML = `<div class="card err">${esc(e.message)}</div>`; }
 }
 window.addEventListener('hashchange', route);
@@ -303,6 +303,63 @@ function openWa() {
 }
 
 /* ---------- dashboard ---------- */
+async function pagePortalGuru() {
+  $('#ttl').textContent = 'Portal Guru';
+  $('#view').innerHTML = '<div class="card mu">Memuat profil…</div>';
+  // Ambil data guru milik user (asumsi user punya npsn atau nip)
+  let guru = null;
+  try {
+    const all = (await api('list', { entity: 'guru' })).rows;
+    guru = all.find(g => g.nip === S.user.username || g.nik === S.user.username || g.nama === S.user.nama) || all[0];
+  } catch (e) {}
+  const nama = guru?.nama || S.user.nama || 'Guru';
+  const nip = guru?.nip || S.user.username || '–';
+  const sekolah = refName(guru?.npsn) || S.user.sekolah_nama || '–';
+  const foto = guru?.foto || S.user.foto || `https://ui-avatars.com/api/?name=${encodeURIComponent(nama)}&background=1a56db&color=fff&size=120`;
+
+  $('#view').innerHTML = `
+  <div style="max-width:480px;margin:0 auto">
+    <div class="card" style="text-align:center;padding:24px 16px">
+      <img src="${esc(foto)}" style="width:96px;height:96px;border-radius:50%;object-fit:cover;border:4px solid #e0e7ff" alt="">
+      <h2 style="margin:12px 0 4px">${esc(nama)}</h2>
+      <div class="mu">NIP ${esc(nip)}</div>
+      <div style="margin-top:6px;font-weight:600">${esc(sekolah)}</div>
+    </div>
+    <div style="margin-top:16px">
+      <h3 style="margin:0 0 10px;font-size:16px">Layanan Kepegawaian</h3>
+      <div class="card" style="padding:0;overflow:hidden">
+        <a href="#/mutasi" style="display:flex;align-items:center;padding:16px;text-decoration:none;color:inherit;border-bottom:1px solid #eee">
+          <span style="font-size:24px;margin-right:12px">🔄</span>
+          <div><b>Usul Mutasi</b><div class="mu" style="font-size:12px">Ajukan perpindahan tugas</div></div>
+        </a>
+        <a href="#/mediasi" style="display:flex;align-items:center;padding:16px;text-decoration:none;color:inherit">
+          <span style="font-size:24px;margin-right:12px">⚖️</span>
+          <div><b>Permohonan Izin Perceraian</b><div class="mu" style="font-size:12px">Ajukan mediasi & izin cerai</div></div>
+        </a>
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <h3 style="margin:0 0 10px;font-size:16px">Status Usulan Saya</h3>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f1f5f9">
+          <div><b>Usul Mutasi</b><div class="mu" style="font-size:12px">Status: Sedang Proses</div></div>
+          <span class="badge wr">Proses</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0">
+          <div><b>Izin Perceraian</b><div class="mu" style="font-size:12px">Status: Rekomendasi Terbit</div></div>
+          <button class="btn sm" onclick="cetakRekomDemo()">Cetak Rekom</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function cetakRekomDemo() {
+  openPrint('Rekomendasi', `<h2>Rekomendasi Izin Perceraian</h2>
+    <p>Berdasarkan hasil mediasi, dengan ini diberikan rekomendasi untuk proses izin perceraian atas nama guru yang bersangkutan.</p>
+    <div class="sign"><div></div><div>Kepala Dinas,<br><br><br><br><b>${KADIS.nama}</b><br>NIP ${KADIS.nip}</div></div>`);
+}
+
 async function pageDash() {
   $('#ttl').textContent = 'Dashboard';
   $('#view').innerHTML = '<div class="card mu">Memuat…</div>';
@@ -1045,11 +1102,14 @@ function drawMap(list) {
 })();
 
 /* ---------- Mediasi Perceraian: cetak dokumen ---------- */
-const KOP = `<div style="text-align:center;border-bottom:3px double #000;padding-bottom:6px;margin-bottom:14px;line-height:1.3">
-  <div style="font-weight:700;font-size:13px">PEMERINTAH KABUPATEN KOTAWARINGIN TIMUR</div>
-  <div style="font-weight:800;font-size:15px;letter-spacing:.5px">DINAS PENDIDIKAN</div>
-  <div style="font-size:11px">Alamat : Jalan Jenderal Sudirman km. 7 &nbsp; Telepon (0531) 21426 &nbsp; Sampit</div>
-  <div style="font-size:11px">e-mail : disdik@kotimkab.go.id &nbsp;|&nbsp; Laman : disdik.kotimkab.go.id</div>
+const KOP = `<div style="display:flex;align-items:center;gap:12px;border-bottom:3px double #000;padding-bottom:6px;margin-bottom:14px">
+  <img src="https://raw.githubusercontent.com/gtkkotim2026-alt/DIKO-Dinas-Pendidikan-Kotim-/main/kotim%20kecil%20Ikon.png" style="width:70px;height:auto;flex:none" alt="Logo">
+  <div style="flex:1;text-align:center;line-height:1.25">
+    <div style="font-weight:700;font-size:13px">PEMERINTAH KABUPATEN KOTAWARINGIN TIMUR</div>
+    <div style="font-weight:800;font-size:16px;letter-spacing:.3px">DINAS PENDIDIKAN</div>
+    <div style="font-size:11px">Alamat : Jalan Jenderal Sudirman Km. 7 &nbsp; Telepon (0531) 21426 &nbsp; SAMPIT</div>
+    <div style="font-size:11px">e-mail : disdik@kotimkab.go.id &nbsp;&nbsp; Laman : disdik.kotimkab.go.id</div>
+  </div>
 </div>`;
 
 const KADIS = { nama: 'Yolanda Lonita Fenisia, S.STP., M.Si', nip: '198104141999122001', pangkat: 'Pembina Tingkat I' };
@@ -1059,15 +1119,18 @@ function openPrint(title, body) {
   const w = window.open('', '_blank');
   w.document.write(`<!DOCTYPE html><html><head><title>${esc(title)}</title>
     <style>
-      body{font:12.5px/1.45 "Times New Roman",Times,serif;margin:36px 48px;color:#000}
-      h2{text-align:center;margin:10px 0 14px;font-size:15px;text-transform:uppercase;letter-spacing:.3px}
+      @page { size: 215mm 330mm; margin: 20mm; }
+      body{font:12pt/1.0 Arial,Helvetica,sans-serif;margin:0;color:#000}
+      h2{text-align:center;margin:12px 0;font-size:13pt;text-transform:uppercase;letter-spacing:.2px}
       .right{text-align:right}
-      .sign{margin-top:36px;display:flex;justify-content:space-between}
-      .sign>div{text-align:center;width:42%}
-      ol{margin:6px 0 10px;padding-left:22px}
-      li{margin:3px 0}
+      .sign{margin-top:30px;display:flex;justify-content:space-between}
+      .sign>div{text-align:center;width:45%}
+      ol{margin:6px 0 8px;padding-left:20px}
+      li{margin:2px 0}
       table.info td{padding:1px 4px;vertical-align:top}
-      @media print{body{margin:18px 24px}}
+      @media print{
+        body{margin:0}
+      }
     </style></head><body>
     ${KOP}${body}
     <script>window.onload=()=>setTimeout(()=>window.print(),400)</script>
