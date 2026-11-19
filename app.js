@@ -643,6 +643,12 @@ function drawTable() {
   const slice = list.slice((V.page - 1) * per, V.page * per);
   const act = r => {
     let a = `<button class="btn sm sec" data-a="view" data-id="${esc(r.id)}">Detail</button> `;
+    if (V.id === 'mediasi') {
+      a += `<button class="btn sm" data-a="undangan" data-id="${esc(r.id)}">Undangan</button> `;
+      a += `<button class="btn sm" data-a="ba" data-id="${esc(r.id)}">BA Mediasi</button> `;
+      a += `<button class="btn sm sec" data-a="pernyataan" data-id="${esc(r.id)}">Pernyataan Gagal</button> `;
+      a += `<button class="btn sm" data-a="pelimpahan" data-id="${esc(r.id)}">Pelimpahan</button> `;
+    }
     if (V.id === 'pendaftaran' && r.status === 'Menunggu') a += `<button class="btn sm" data-a="ok" data-id="${esc(r.id)}">Setujui</button> <button class="btn sm sec" data-a="no" data-id="${esc(r.id)}">Tolak</button> `;
     if (can('update')) a += `<button class="btn sm sec" data-a="edit" data-id="${esc(r.id)}">Ubah</button> `;
     if (can('delete')) a += `<button class="btn sm dan" data-a="del" data-id="${esc(r.id)}">Hapus</button>`;
@@ -672,7 +678,10 @@ async function onTblClick(e) {
   }
   const rec = V.rows.find(r => r.id === b.dataset.id);
   try {
-    if (a === 'view') return openView(rec);
+  if (a === 'undangan') return cetakUndangan(rec);
+  if (a === 'ba') return cetakBA(rec);
+  if (a === 'pernyataan') return cetakPernyataan(rec);
+  if (a === 'pelimpahan') return cetakPelimpahan(rec);
     if (a === 'edit') return openForm(rec);
     if (a === 'del') { if (confirm('Hapus data ini? Tindakan tidak dapat dibatalkan.')) { await api('remove', { entity: V.id, id: rec.id }); toast('Data dihapus', 'ok'); await V.reload(); } return; }
     if (a === 'ok') { if (confirm('Setujui pendaftaran ' + rec.nama + '? Data sekolah, kepala sekolah, dan akun login akan dibuat.')) { await api('approve', { id: rec.id }); toast('Pendaftaran disetujui', 'ok'); S.refs = (await api('refs')).refs; await V.reload(); } return; }
@@ -1030,3 +1039,124 @@ function drawMap(list) {
   }
   showLogin();
 })();
+
+/* ---------- Mediasi Perceraian: cetak dokumen ---------- */
+const KOP = `<div style="text-align:center;border-bottom:3px solid #000;padding-bottom:8px;margin-bottom:16px">
+  <div style="font-weight:700;font-size:14px">PEMERINTAH KABUPATEN KOTAWARINGIN TIMUR</div>
+  <div style="font-weight:800;font-size:16px">DINAS PENDIDIKAN</div>
+  <div style="font-size:12px">Jalan ... , Sampit &nbsp;|&nbsp; Telp. ...</div>
+</div>`;
+
+function openPrint(title, body) {
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><title>${esc(title)}</title>
+    <style>body{font:13px/1.5 "Times New Roman",serif;margin:40px;color:#000}
+    h2{text-align:center;margin:12px 0;font-size:16px;text-transform:uppercase}
+    .sign{margin-top:40px;display:flex;justify-content:space-between}
+    .sign>div{text-align:center;width:45%}
+    table.q{width:100%;border-collapse:collapse;margin:8px 0}
+    table.q td{padding:4px 0;vertical-align:top}
+    @media print{body{margin:20px}}</style></head><body>
+    ${KOP}${body}
+    <script>window.onload=()=>setTimeout(()=>window.print(),300)</script>
+    </body></html>`);
+  w.document.close();
+}
+
+function cetakUndangan(r) {
+  const tgl = new Date().toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'});
+  const body = `<div style="text-align:right">Sampit, ${tgl}</div>
+    <h2>Undangan Mediasi Perceraian</h2>
+    <p>Kepada Yth.<br>Sdr/i ${esc(r.nama || '')}<br>di tempat</p>
+    <p>Dengan hormat,<br>Sehubungan dengan permohonan izin perceraian yang Saudara ajukan, kami mengundang Saudara untuk menghadiri mediasi pada:</p>
+    <table>
+      <tr><td style="width:120px">Hari/Tanggal</td><td>: ........................</td></tr>
+      <tr><td>Waktu</td><td>: ........................</td></tr>
+      <tr><td>Tempat</td><td>: Ruang Dinas Pendidikan Kab. Kotim</td></tr>
+    </table>
+    <p>Demikian undangan ini disampaikan. Atas perhatiannya diucapkan terima kasih.</p>
+    <div class="sign">
+      <div></div>
+      <div>Kepala Dinas Pendidikan<br>Kabupaten Kotawaringin Timur<br><br><br><br>
+      <b>................................</b><br>NIP. ........................</div>
+    </div>`;
+  openPrint('Undangan Mediasi', body);
+}
+
+function cetakBA(r) {
+  const body = `<h2>Berita Acara Keterangan Perceraian</h2>
+    <p>Pada hari ini, ........................, bertempat di Dinas Pendidikan Kabupaten Kotawaringin Timur, yang bertanda tangan di bawah ini:</p>
+    <table>
+      <tr><td style="width:100px">Nama</td><td>: ........................</td></tr>
+      <tr><td>NIP</td><td>: ........................</td></tr>
+      <tr><td>Jabatan</td><td>: ........................</td></tr>
+    </table>
+    <p>selaku Pewawancara, telah melakukan wawancara/mediasi terhadap:</p>
+    <table>
+      <tr><td style="width:100px">Nama</td><td>: ${esc(r.nama || '')}</td></tr>
+      <tr><td>NIP</td><td>: ${esc(r.nip || '')}</td></tr>
+      <tr><td>Jabatan</td><td>: ${esc(r.jabatan || '')}</td></tr>
+      <tr><td>Asal Sekolah</td><td>: ${esc(refName(r.npsn) || r.sekolah || '')}</td></tr>
+    </table>
+    <p>sehubungan dengan permohonan izin perceraian yang bersangkutan, dengan hasil sebagai berikut:</p>
+    <p><b>A. Identitas dan Latar Belakang Pernikahan</b></p>
+    <ol>
+      <li>Sejak kapan menikah? ................................</li>
+      <li>Apakah pernikahan sah secara agama dan negara? ................................</li>
+      <li>Apakah telah dikaruniai anak? ................................</li>
+    </ol>
+    <p><b>B. Alasan Mengajukan Gugatan Cerai</b></p>
+    <ol start="4">
+      <li>Apa alasan utama mengajukan gugatan cerai? ................................</li>
+      <li>Sejak kapan permasalahan mulai terjadi? ................................</li>
+    </ol>
+    <p style="margin-top:30px">Demikian Berita Acara ini dibuat dengan sebenarnya.</p>
+    <div class="sign">
+      <div>Yang Memberikan Keterangan<br><br><br><br><b>${esc(r.nama || '')}</b><br>NIP. ${esc(r.nip || '')}</div>
+      <div>Pewawancara<br><br><br><br><b>........................</b><br>NIP. ........................</div>
+    </div>
+    <div class="sign" style="margin-top:20px">
+      <div>Saksi I<br><br><br><br>........................</div>
+      <div>Saksi II<br><br><br><br>........................</div>
+    </div>`;
+  openPrint('BA Mediasi', body);
+}
+
+function cetakPernyataan(r) {
+  const body = `<h2>Surat Pernyataan</h2>
+    <p>Yang bertanda tangan di bawah ini:</p>
+    <table>
+      <tr><td style="width:100px">Nama</td><td>: ${esc(r.nama || '')}</td></tr>
+      <tr><td>NIP</td><td>: ${esc(r.nip || '')}</td></tr>
+      <tr><td>Jabatan</td><td>: ${esc(r.jabatan || '')}</td></tr>
+    </table>
+    <p>Menyatakan bahwa mediasi perceraian yang telah dilakukan pada tanggal ........................ <b>tidak berhasil</b> / gagal mencapai kesepakatan.</p>
+    <p>Demikian surat pernyataan ini dibuat dengan sebenarnya untuk dipergunakan sebagaimana mestinya.</p>
+    <div class="sign">
+      <div></div>
+      <div>Sampit, ........................<br>Yang Menyatakan<br><br><br><br><b>${esc(r.nama || '')}</b><br>NIP. ${esc(r.nip || '')}</div>
+    </div>`;
+  openPrint('Surat Pernyataan Gagal Mediasi', body);
+}
+
+function cetakPelimpahan(r) {
+  const tgl = new Date().toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'});
+  const body = `<div style="text-align:right">Sampit, ${tgl}</div>
+    <h2>Surat Pelimpahan Rekomendasi Izin Perceraian</h2>
+    <p>Kepada Yth.<br>Kepala BKPSDM Kabupaten Kotawaringin Timur<br>di Sampit</p>
+    <p>Dengan hormat,<br>Sehubungan dengan permohonan izin perceraian dari:</p>
+    <table>
+      <tr><td style="width:120px">Nama</td><td>: ${esc(r.nama || '')}</td></tr>
+      <tr><td>NIP</td><td>: ${esc(r.nip || '')}</td></tr>
+      <tr><td>Jabatan</td><td>: ${esc(r.jabatan || '')}</td></tr>
+      <tr><td>Unit Kerja</td><td>: ${esc(refName(r.npsn) || '')}</td></tr>
+    </table>
+    <p>setelah dilakukan mediasi namun tidak mencapai kesepakatan, dengan ini kami melimpahkan rekomendasi izin perceraian tersebut kepada BKPSDM Kabupaten Kotawaringin Timur untuk diproses lebih lanjut sesuai ketentuan.</p>
+    <p>Demikian surat pelimpahan ini kami sampaikan. Atas perhatian dan kerjasamanya diucapkan terima kasih.</p>
+    <div class="sign">
+      <div></div>
+      <div>Kepala Dinas Pendidikan<br>Kabupaten Kotawaringin Timur<br><br><br><br>
+      <b>................................</b><br>NIP. ........................</div>
+    </div>`;
+  openPrint('Pelimpahan ke BKPSDM', body);
+}
