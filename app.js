@@ -11,16 +11,16 @@ const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&a
 const ROLE = { superadmin: 'Super Admin', pengguna: 'Pengguna', sekolah: 'Sekolah' };
 const COL = { TK: '#f79009', SD: '#1b5fc4', SMP: '#12805c' };
 const MENU = [
-  { id: 'dashboard', t: 'Dashboard' },
-  { id: 'pegawai', t: 'Pegawai Disdik' },
+  { id: 'dashboard', t: 'Dashboard', ico: '📊' },
+  { id: 'pegawai', t: 'Pegawai Disdik', ico: '👥' },
   { g: 'Satuan Pendidikan', items: [
-    { id: 'sekolah', t: 'Data Sekolah' }, { id: 'guru', t: 'Data Guru' }, { id: 'kepsek', t: 'Data Kepala Sekolah' },
-    { id: 'lokasi', t: 'Lokasi Sekolah' }, { id: 'rombel', t: 'Data Rombel' }, { id: 'kebutuhan', t: 'Kebutuhan Guru' }] },
-  { id: 'mutasi', t: 'Mutasi' },
-  { id: 'mediasi', t: 'Mediasi Perceraian' },
-  { id: 'disiplin', t: 'Pembinaan Disiplin' },
-  { g: 'Promosi', items: [{ id: 'usul_plt', t: 'Usul Plt Kepsek' }, { id: 'usul_definitif', t: 'Usul Kepsek Definitif' }] },
-  { g: 'Administrasi', items: [{ id: 'pendaftaran', t: 'Pendaftaran Sekolah' }, { id: 'users', t: 'Pengguna' }] }
+    { id: 'sekolah', t: 'Data Sekolah', ico: '🏫' }, { id: 'guru', t: 'Data Guru', ico: '👨‍🏫' }, { id: 'kepsek', t: 'Data Kepala Sekolah', ico: '👨‍💼' },
+    { id: 'lokasi', t: 'Lokasi Sekolah', ico: '📍' }, { id: 'rombel', t: 'Data Rombel', ico: '📚' }, { id: 'kebutuhan', t: 'Kebutuhan Guru', ico: '📋' }] },
+  { id: 'mutasi', t: 'Mutasi', ico: '🔄' },
+  { id: 'mediasi', t: 'Mediasi Perceraian', ico: '⚖️' },
+  { id: 'disiplin', t: 'Pembinaan Disiplin', ico: '📝' },
+  { g: 'Promosi', items: [{ id: 'usul_plt', t: 'Usul Plt Kepsek', ico: '⭐' }, { id: 'usul_definitif', t: 'Usul Kepsek Definitif', ico: '🏆' }] },
+  { g: 'Administrasi', items: [{ id: 'pendaftaran', t: 'Pendaftaran Sekolah', ico: '📄' }, { id: 'users', t: 'Pengguna', ico: '👤' }] }
 ];
 const REG = [
   { k: 'npsn', l: 'NPSN (8 karakter)', r: 1 }, { k: 'nama', l: 'Nama Sekolah', r: 1 },
@@ -246,7 +246,13 @@ async function doLogout(expired) {
 /* ---------- shell ---------- */
 function init(r) {
   S.user = r.user; S.schema = r.schema; S.refs = r.refs;
-  $('#root').innerHTML = `<div class="app"><aside id="side"><div class="brand">${esc(CFG.APP_NAME || 'SIM Disdik')}<small>${esc(S.user.sekolah_nama || CFG.APP_SUB || '')}</small></div><nav id="nav"></nav></aside>
+  $('#root').innerHTML = `<div class="app"><aside id="side"><div class="brand">
+    <div class="brand-logo">D</div>
+    <div class="brand-text">
+      <div class="brand-name">DIKO</div>
+      <div class="brand-sub">Sistem Informasi Terintegrasi</div>
+    </div>
+  </div><nav id="nav"></nav></aside>
     <div class="main"><header><button class="btn sec sm" id="burger" aria-label="Menu">☰</button><h1 id="ttl"></h1><div class="sp"></div>
     <span class="who"><img src="${S.user.foto || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(S.user.nama) + '&background=1a56db&color=fff&size=32'}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;vertical-align:middle" alt="">${esc(S.user.nama)} <span class="badge">${ROLE[S.user.role]}</span></span>
     <button class="btn sec sm" id="wa">No. WA</button><button class="btn sec sm" id="pw">Ubah Password</button><button class="btn sec sm" id="out">Keluar</button></header><main id="view"></main></div></div><div id="scrim"></div>`;
@@ -256,7 +262,7 @@ function init(r) {
   $('#pw').onclick = openPw;
   $('#wa').onclick = openWa;
   const allowed = id => id === 'dashboard' || (id === 'lokasi' ? !!S.schema.sekolah : id === 'kebutuhan' ? !!S.schema.rombel : !!S.schema[id]);
-  const link = i => `<a href="#/${i.id}" data-id="${i.id}">${esc(i.t)}</a>`;
+  const link = i => `<a href="#/${i.id}" data-id="${i.id}"><span class="nav-ico">${i.ico || '•'}</span><span class="nav-label">${esc(i.t)}</span></a>`;
   $('#nav').innerHTML = MENU.map(m => {
     if (m.g) { const its = m.items.filter(i => allowed(i.id)); return its.length ? `<div class="grp">${esc(m.g)}</div>` + its.map(link).join('') : ''; }
     return allowed(m.id) ? link(m) : '';
@@ -383,8 +389,8 @@ function applyTheme(theme) {
     document.querySelectorAll('.btn:not(.sec):not(.dan)').forEach(b => b.style.background = `linear-gradient(135deg, ${theme.color}, ${theme.color})`);
   }
   if (theme.logo) {
-    const brand = document.querySelector('.brand');
-    if (brand) brand.innerHTML = `<img src="${theme.logo}" style="height:32px;vertical-align:middle;margin-right:8px" alt="logo"> DIKO`;
+    const logo = document.querySelector('.brand-logo');
+    if (logo) logo.innerHTML = `<img src="${theme.logo}" style="width:100%;height:100%;object-fit:cover;border-radius:14px" alt="logo">`;
   }
 }
 
@@ -405,7 +411,7 @@ const stBadge = s => `<span class="badge ${{ 'Sesuai': 'ok', 'Kurang': 'er', 'Ku
 const nK = v => v > 0 ? `<b style="color:var(--er)">${fnum(v)}</b>` : '<span class="mu">0</span>';
 const nL = v => v > 0 ? `<b style="color:#b54708">${fnum(v)}</b>` : '<span class="mu">0</span>';
 const kStd = k => K.d.standar.kat.find(x => x.k === k) || { n: k, rumus: '' };
-const ktitle = () => `Analisis Kebutuhan Guru ${K.jenjang} — Tahun Ajaran ${K.d.tahun}`;
+const ktitle = () => `Analisis Kebutuhan Guru ${K.jenjang} Negeri — Tahun Ajaran ${K.d.tahun}`;
 
 async function pageKebutuhan() {
   $('#ttl').textContent = 'Kebutuhan Guru';
@@ -420,7 +426,13 @@ const kSafe = async fn => { try { await fn(); } catch (e) { toast(e.message, 'er
 
 function kList() {
   const q = K.q.toLowerCase();
-  return K.d.rows.filter(r => stOk(r, K.st) && (!q || (r.nama + ' ' + r.npsn + ' ' + r.kecamatan).toLowerCase().includes(q)))
+  const isNegeri = nama => {
+    const n = (nama || '').toUpperCase();
+    return /\b(TKN|TK\s*NEGERI|SDN|SD\s*NEGERI|SMPN|SMP\s*NEGERI)\b/.test(n) || 
+           n.includes('NEGERI') && (n.includes('TK') || n.includes('SD') || n.includes('SMP'));
+  };
+  return K.d.rows
+    .filter(r => isNegeri(r.nama) && stOk(r, K.st) && (!q || (r.nama + ' ' + r.npsn + ' ' + r.kecamatan).toLowerCase().includes(q)))
     .sort((a, b) => b.kurang - a.kurang || String(a.kecamatan).localeCompare(b.kecamatan) || String(a.nama).localeCompare(b.nama));
 }
 
@@ -439,7 +451,7 @@ function drawK() {
     <select id="khit">${Object.keys(HITUNG).map(k => `<option value="${k}"${k === K.hitung ? ' selected' : ''}>${HITUNG[k]}</option>`).join('')}</select>
     <div class="sp"></div>
     <button class="btn sec" id="kp1">Cetak Rekap</button><button class="btn sec" id="kp2">Cetak + Rincian Sekolah</button><button class="btn sec" id="kcsv">Ekspor CSV</button></div>
-    <p class="mu" style="margin:10px 0 0">${esc(ktitle())} · Guru yang dihitung: ${esc(HITUNG[K.hitung])}</p></div>
+    <p class="mu" style="margin:10px 0 0">${esc(ktitle())} · Hanya sekolah negeri (TKN/TK Negeri, SDN/SD Negeri, SMPN/SMP Negeri) · Guru yang dihitung: ${esc(HITUNG[K.hitung])}</p></div>
   <div class="cards">
     <div class="stat"><b>${t.sekolah_rombel}<small class="mu"> / ${t.sekolah}</small></b>Sekolah (ada rombel / seluruhnya)</div>
     <div class="stat"><b>${t.rombel}</b>Rombel · ${t.siswa} siswa</div>
@@ -588,7 +600,7 @@ function filtered() {
 function drawTable() {
   const ent = V.ent, list = filtered(), can = o => ent.ops.includes(o);
   if (V.id === 'rombel') {
-    $('#extra').innerHTML = '<div class="card mu" style="margin-bottom:12px">Ringkasan jumlah rombel per sekolah. Klik <b>Lihat Rombel</b> untuk melihat detail kelas. Data ini digunakan untuk menghitung Kebutuhan Guru.</div>';
+    $('#extra').innerHTML = '<div class="card mu" style="margin-bottom:12px">Ringkasan jumlah rombel per sekolah (hanya negeri yang dihitung untuk kebutuhan guru). Impor mendukung format 1 baris per sekolah dengan kolom <b>Jumlah Rombel</b>.</div>';
     // Aggregate by npsn + tahun_ajaran
     const groups = {};
     list.forEach(r => {
