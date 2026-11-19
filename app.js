@@ -1076,71 +1076,153 @@ function openPrint(title, body) {
 }
 
 function cetakUndangan(r) {
-  const tgl = new Date().toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'});
-  const body = `<div class="right">Sampit, ${tgl}</div>
-    <table style="margin:8px 0 16px">
-      <tr><td style="width:70px">Nomor</td><td>: 800.1.6.1/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/DISDIK-5/2026</td></tr>
-      <tr><td>Sifat</td><td>: Penting</td></tr>
-      <tr><td>Lampiran</td><td>: -</td></tr>
-      <tr><td>Hal</td><td>: <b>Undangan Mediasi Perceraian</b></td></tr>
-    </table>
-    <p>Yth. ${esc(r.nama || '........................')}<br>di -<br>&nbsp;&nbsp;&nbsp;Tempat</p>
-    <p>Dengan hormat,<br>Sehubungan dengan permohonan izin perceraian yang Saudara ajukan, kami mengundang Saudara untuk menghadiri mediasi pada:</p>
-    <table class="info">
-      <tr><td style="width:110px">Hari/Tanggal</td><td>: ........................</td></tr>
-      <tr><td>Pukul</td><td>: ........................ WIB</td></tr>
-      <tr><td>Tempat</td><td>: Ruang Bidang Pembinaan Ketenagaan<br>&nbsp;&nbsp;Dinas Pendidikan Kab. Kotawaringin Timur</td></tr>
-    </table>
-    <p>Demikian undangan ini disampaikan untuk dapat dihadiri. Atas perhatiannya diucapkan terima kasih.</p>
-    <div class="sign">
-      <div></div>
-      <div>Kepala Dinas,<br><br><br><br><b>${KADIS.nama}</b><br>${KADIS.pangkat}<br>NIP ${KADIS.nip}</div>
-    </div>`;
-  openPrint('Undangan Mediasi', body);
+  modal('Data Undangan Mediasi', `
+    <div class="fg">
+      <div><label>Hari</label><input id="u_hari" value="Senin" required></div>
+      <div><label>Tanggal</label><input id="u_tgl" type="date" required></div>
+      <div><label>Pukul</label><input id="u_pukul" value="09.00 WIB s.d. selesai" required></div>
+      <div class="full"><label>Tempat</label><input id="u_tempat" value="Ruang Pembinaan Ketenagaan Dinas Pendidikan Kabupaten Kotawaringin Timur" required></div>
+    </div>`, async m => {
+    const hari = $('#u_hari', m).value;
+    const tgl = $('#u_tgl', m).value;
+    const pukul = $('#u_pukul', m).value;
+    const tempat = $('#u_tempat', m).value;
+    const tglSurat = new Date().toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'});
+    const body = `<div class="right">Sampit, ${tglSurat}</div>
+      <table style="margin:8px 0 16px;font-size:12px">
+        <tr><td style="width:70px">Nomor</td><td>: 800.1.6.1/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/DISDIK-5/2026</td></tr>
+        <tr><td>Sifat</td><td>: Rahasia</td></tr>
+        <tr><td>Lampiran</td><td>: -</td></tr>
+        <tr><td>Hal</td><td>: <b>Panggilan Klarifikasi / Undangan Mediasi</b></td></tr>
+      </table>
+      <p><b>Yth. ${esc(r.nama || '')}</b><br>di –<br>&nbsp;&nbsp;&nbsp;Tempat</p>
+      <p>Sehubungan dengan adanya proses penelaahan dan klarifikasi yang dilaksanakan oleh Dinas Pendidikan Kabupaten Kotawaringin Timur, dengan ini Saudara/i diminta untuk hadir guna memberikan keterangan sebagai pihak yang terkait.</p>
+      <p>Berkenaan dengan hal tersebut, dengan ini kami mohon kehadiran Saudara/i pada:</p>
+      <table class="info">
+        <tr><td style="width:80px">Hari</td><td>: ${esc(hari)}</td></tr>
+        <tr><td>Tanggal</td><td>: ${esc(fmtDate(tgl))}</td></tr>
+        <tr><td>Waktu</td><td>: ${esc(pukul)}</td></tr>
+        <tr><td>Tempat</td><td>: ${esc(tempat)}</td></tr>
+      </table>
+      <p>Demikian Surat Panggilan ini disampaikan, atas kehadirannya diucapkan terima kasih.</p>
+      <div class="sign">
+        <div></div>
+        <div>Kepala Dinas,<br><br><br><br><b>${KADIS.nama}</b><br>${KADIS.pangkat}<br>NIP ${KADIS.nip}</div>
+      </div>
+      <p style="margin-top:24px;font-size:11px"><b>Tembusan</b> disampaikan kepada Yth.:<br>
+      1. Bupati Kotawaringin Timur di Sampit (sebagai laporan)<br>
+      2. Pj. Sekretaris Daerah Kabupaten Kotawaringin Timur di Sampit<br>
+      3. Inspektur Daerah Kabupaten Kotawaringin Timur di Sampit<br>
+      4. Kepala BKPSDM Kabupaten Kotawaringin Timur di Sampit</p>`;
+    openPrint('Undangan / Panggilan Mediasi', body);
+  }, { ok: 'Cetak' });
 }
 
 function cetakBA(r) {
-  const isIstri = true; // bisa dikembangkan nanti
-  const body = `<h2>Berita Acara<br>Keterangan Perceraian</h2>
-    <p>Pada hari ini, ........................, bertempat di ruang Bidang Pembinaan Ketenagaan Dinas Pendidikan Kabupaten Kotawaringin Timur, yang bertanda tangan di bawah ini:</p>
-    <table class="info">
-      <tr><td style="width:90px">Nama</td><td>: <b>${PEWAWANCARA.nama}</b></td></tr>
-      <tr><td>NIP</td><td>: ${PEWAWANCARA.nip}</td></tr>
-      <tr><td>Jabatan</td><td>: ${PEWAWANCARA.jabatan}</td></tr>
-    </table>
-    <p>selaku Pewawancara, telah melakukan wawancara/mediasi terhadap:</p>
-    <table class="info">
-      <tr><td style="width:90px">Nama</td><td>: <b>${esc(r.nama || '')}</b></td></tr>
+  const form = `
+    <div style="max-height:70vh;overflow:auto;padding-right:8px">
+      <h4 style="margin:8px 0 4px">1. Pihak yang diwawancarai</h4>
+      <div class="fg">
+        <div><label>Kedudukan</label><select id="ba_kedudukan"><option>Penggugat</option><option>Tergugat</option></select></div>
+        <div><label>Sebagai</label><select id="ba_sebagai"><option>Istri</option><option>Suami</option></select></div>
+        <div class="full"><label>Nama pasangan</label><input id="ba_pasangan"></div>
+      </div>
+      <h4 style="margin:12px 0 4px">2. Waktu & Petugas</h4>
+      <div class="fg">
+        <div class="full"><label>Hari & Tanggal</label><input id="ba_hari" placeholder="Kamis, 29 Oktober 2026" required></div>
+        <div><label>Pewawancara</label><input id="ba_pew" value="${PEWAWANCARA.nama}"></div>
+        <div><label>NIP Pewawancara</label><input id="ba_pewnip" value="${PEWAWANCARA.nip}"></div>
+      </div>
+      <h4 style="margin:12px 0 4px">3. Pertanyaan Wawancara</h4>
+      <p class="mu" style="font-size:12px">Tulis jawaban di bawah setiap pertanyaan. Kosongkan jika tidak dijawab.</p>
+      <div id="ba_pertanyaan"></div>
+      <h4 style="margin:12px 0 4px">4. Hasil Mediasi</h4>
+      <div class="fg">
+        <div><label>Hasil</label><select id="ba_hasil"><option>Gagal</option><option>Berhasil</option></select></div>
+        <div class="full"><label>Catatan / Kesimpulan</label><textarea id="ba_catatan" rows="3"></textarea></div>
+      </div>
+    </div>`;
+  modal('Pengisian BAP Mediasi', form, async m => {
+    const ked = $('#ba_kedudukan', m).value;
+    const hari = $('#ba_hari', m).value;
+    const pew = $('#ba_pew', m).value;
+    const pewnip = $('#ba_pewnip', m).value;
+    const hasil = $('#ba_hasil', m).value;
+    const catatan = $('#ba_catatan', m).value;
+    const answers = [];
+    $$('.ba-jawab', m).forEach(el => {
+      if (el.value.trim()) answers.push({ q: el.dataset.q, a: el.value.trim() });
+    });
+    let isi = answers.map((x, i) => `<p><b>${i+1}. ${esc(x.q)}</b><br>${esc(x.a).replace(/\n/g,'<br>')}</p>`).join('');
+    if (catatan) isi += `<p><b>Kesimpulan:</b><br>${esc(catatan)}</p>`;
+    const body = `<h2>Berita Acara<br>Keterangan Perceraian</h2>
+      <p>Pada hari ini, ${esc(hari)}, bertempat di ruang Bidang Pembinaan Ketenagaan Dinas Pendidikan Kabupaten Kotawaringin Timur, yang bertanda tangan di bawah ini:</p>
+      <table class="info"><tr><td style="width:90px">Nama</td><td>: <b>${esc(pew)}</b></td></tr>
+      <tr><td>NIP</td><td>: ${esc(pewnip)}</td></tr></table>
+      <p>selaku Pewawancara, telah melakukan wawancara/mediasi terhadap:</p>
+      <table class="info"><tr><td style="width:90px">Nama</td><td>: <b>${esc(r.nama || '')}</b></td></tr>
       <tr><td>NIP</td><td>: ${esc(r.nip || '')}</td></tr>
       <tr><td>Jabatan</td><td>: ${esc(r.jabatan || 'Guru')}</td></tr>
-      <tr><td>Asal Sekolah</td><td>: ${esc(refName(r.npsn) || r.sekolah || '')}</td></tr>
-    </table>
-    <p>sehubungan dengan permohonan izin perceraian yang bersangkutan, dengan hasil sebagai berikut:</p>
-    <p><b>A. Identitas dan Latar Belakang Pernikahan</b></p>
-    <ol>
-      <li>Sejak kapan menikah dengan pasangan?</li>
-      <li>Apakah pernikahan tersebut sah secara agama dan negara?</li>
-      <li>Apakah dari pernikahan tersebut telah dikaruniai anak? Jika ya, berapa jumlahnya dan berapa usianya?</li>
-    </ol>
-    <p><b>B. Alasan / Tanggapan terhadap Gugatan Cerai</b></p>
-    <ol start="4">
-      <li>Apa alasan utama mengajukan / menanggapi gugatan cerai?</li>
-      <li>Sejak kapan permasalahan rumah tangga mulai terjadi?</li>
-      <li>Apakah perselisihan terjadi secara terus-menerus?</li>
-      <li>Apakah pernah terjadi kekerasan dalam rumah tangga?</li>
-    </ol>
-    <p style="margin-top:24px">Demikian Berita Acara Keterangan Perceraian ini dibuat dengan sebenarnya untuk dapat dipergunakan sebagaimana mestinya.</p>
-    <div class="sign">
-      <div>Yang Memberikan Keterangan<br><br><br><br><b>${esc(r.nama || '')}</b><br>NIP. ${esc(r.nip || '')}</div>
-      <div>Pewawancara<br><br><br><br><b>${PEWAWANCARA.nama}</b><br>NIP. ${PEWAWANCARA.nip}</div>
-    </div>
-    <div class="sign" style="margin-top:16px">
-      <div>Saksi II<br><br><br><br>........................<br>NIP. ........................</div>
-      <div>Saksi I<br><br><br><br>........................<br>NIP. ........................</div>
-    </div>
-    <p style="margin-top:20px;text-align:center;font-weight:700">DOKUMENTASI</p>
-    <div style="border:1px dashed #999;height:120px;margin-top:8px;display:flex;align-items:center;justify-content:center;color:#999">Tempat foto dokumentasi</div>`;
-  openPrint('BA Mediasi', body);
+      <tr><td>Asal Sekolah</td><td>: ${esc(refName(r.npsn) || '')}</td></tr>
+      <tr><td>Kedudukan</td><td>: ${esc(ked)}</td></tr></table>
+      <p>sehubungan dengan permohonan izin perceraian, dengan hasil sebagai berikut:</p>
+      ${isi}
+      <p style="margin-top:16px"><b>Hasil Mediasi: ${esc(hasil)}</b></p>
+      <p>Demikian Berita Acara ini dibuat dengan sebenarnya.</p>
+      <div class="sign"><div>Yang Memberikan Keterangan<br><br><br><br><b>${esc(r.nama || '')}</b></div>
+      <div>Pewawancara<br><br><br><br><b>${esc(pew)}</b></div></div>
+      <p style="text-align:center;margin-top:16px;font-weight:700">DOKUMENTASI</p>`;
+    openPrint('BA Mediasi', body);
+  }, { ok: 'Simpan & Cetak BA' });
+
+  // Render questions based on kedudukan
+  setTimeout(() => {
+    const qPenggugat = [
+      ['A. Identitas dan Latar Belakang', [
+        'Sejak kapan menikah dengan pasangan?',
+        'Apakah pernikahan sah secara agama dan negara?',
+        'Apakah telah dikaruniai anak? Jika ya, berapa dan berapa usianya?'
+      ]],
+      ['B. Alasan Mengajukan Gugatan', [
+        'Apa alasan utama mengajukan gugatan cerai?',
+        'Sejak kapan permasalahan mulai terjadi?',
+        'Apakah pernah terjadi KDRT atau penelantaran?'
+      ]],
+      ['C. Upaya Perdamaian', [
+        'Apakah sebelumnya pernah ada upaya mediasi?',
+        'Apakah masih berkeinginan rukun kembali?'
+      ]]
+    ];
+    const qTergugat = [
+      ['A. Tanggapan terhadap Gugatan', [
+        'Apakah mengetahui istri/suami mengajukan cerai? Apa tanggapan Anda?',
+        'Menurut Anda, apa penyebab utama permasalahan?',
+        'Sejak kapan permasalahan mulai terjadi?'
+      ]],
+      ['B. Pemenuhan Nafkah', [
+        'Apakah sudah memenuhi kewajiban nafkah lahir dan batin?',
+        'Bagaimana kondisi anak dan harta bersama?'
+      ]],
+      ['C. Sikap dan Harapan', [
+        'Apakah menerima atau menolak keputusan pasangan untuk bercerai?',
+        'Apa harapan Anda terhadap penyelesaian perkara ini?'
+      ]]
+    ];
+    function renderQ() {
+      const ked = $('#ba_kedudukan').value;
+      const groups = ked === 'Tergugat' ? qTergugat : qPenggugat;
+      let h = '';
+      groups.forEach(g => {
+        h += `<p style="margin:10px 0 4px;font-weight:700">${esc(g[0])}</p>`;
+        g[1].forEach(q => {
+          h += `<div style="margin-bottom:8px"><label style="font-size:12.5px">${esc(q)}</label><textarea class="ba-jawab" data-q="${esc(q)}" rows="2" style="width:100%;margin-top:2px"></textarea></div>`;
+        });
+      });
+      $('#ba_pertanyaan').innerHTML = h;
+    }
+    $('#ba_kedudukan').onchange = renderQ;
+    renderQ();
+  }, 100);
 }
 
 function cetakPernyataan(r) {
@@ -1171,7 +1253,7 @@ function cetakPernyataan(r) {
 function cetakPelimpahan(r) {
   const tgl = new Date().toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'});
   const body = `<div class="right">Sampit, ${tgl}</div>
-    <table style="margin:6px 0 14px">
+    <table style="margin:6px 0 14px;font-size:12px">
       <tr><td style="width:70px">Nomor</td><td>: 800.1.6.1/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/DISDIK-5/2026</td></tr>
       <tr><td>Sifat</td><td>: Penting</td></tr>
       <tr><td>Lampiran</td><td>: 1 (satu) berkas</td></tr>
@@ -1179,7 +1261,7 @@ function cetakPelimpahan(r) {
     </table>
     <p>Yth. Kepala Badan Kepegawaian dan Pengembangan<br>Sumber Daya Manusia<br>Kabupaten Kotawaringin Timur<br>di -<br>&nbsp;&nbsp;&nbsp;Sampit</p>
     <p>Menindaklanjuti permohonan izin cerai atas nama <b>${esc(r.nama || '')}</b>, NIP ${esc(r.nip || '')}, ${esc(r.jabatan || 'Guru')} di ${esc(refName(r.npsn) || '')}, bersama ini dilaporkan bahwa yang bersangkutan beserta pasangan telah dipanggil dan dilakukan pemeriksaan serta mediasi (sebagaimana Berita Acara terlampir).</p>
-    <p>Sehubungan kedua belah pihak telah hadir dalam pemanggilan dan dilakukan upaya mediasi, namun mediasi tidak berhasil mendamaikan kedua belah pihak. Maka selanjutnya, untuk penyelesaian dan penerbitan rekomendasi perceraian diserahkan ke BKPSDM Kabupaten Kotawaringin Timur.</p>
+    <p>Sehubungan kedua belah pihak (suami dan istri) telah hadir dalam pemanggilan dan dilakukan upaya mediasi, namun mediasi tidak berhasil mendamaikan kedua belah pihak. Maka selanjutnya, untuk penyelesaian dan penerbitan rekomendasi perceraian diserahkan ke BKPSDM Kabupaten Kotawaringin Timur.</p>
     <p>Demikian disampaikan untuk diketahui dan diproses sebagaimana mestinya, terima kasih.</p>
     <div class="sign">
       <div></div>
