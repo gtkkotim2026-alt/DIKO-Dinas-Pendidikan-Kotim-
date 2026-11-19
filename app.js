@@ -256,11 +256,29 @@ function openWa() {
 async function pageDash() {
   $('#ttl').textContent = 'Dashboard'; $('#view').innerHTML = '<div class="card mu">Memuat…</div>';
   const st = await api('stats'), keys = Object.keys(st.counts);
-  let h = '';
-  if (S.user.role === 'sekolah') h += `<div class="card"><h3>Selamat datang, ${esc(S.user.sekolah_nama || S.user.nama)}</h3><span class="mu">Kelola data sekolah, guru, kepala sekolah, rombel, dan usul mutasi dari menu di samping.</span></div>`;
-  if (st.menunggu) h += `<a class="stat wr" href="#/pendaftaran" style="margin-bottom:16px"><b>${st.menunggu}</b>Pendaftaran sekolah menunggu verifikasi</a>`;
-  h += `<h3>Ringkasan Data</h3><div class="cards">${keys.filter(k => k !== 'pendaftaran').map(k => `<a class="stat" href="#/${k}"><b>${st.counts[k]}</b>${esc(S.schema[k].title)}</a>`).join('')}</div>`;
-  if (S.schema.rombel && st.kek) h += `<h3>Kekurangan &amp; Kelebihan Guru (dihitung dari rombel)</h3><div class="cards">${['TK', 'SD', 'SMP'].map(j => { const x = st.kek[j] || { kurang: 0, lebih: 0 }; return `<a class="stat" href="#/kebutuhan"><b style="color:var(--er)">${fnum(x.kurang)}</b>Guru kurang — ${j}<br><span class="mu">Lebih ${fnum(x.lebih)}${x.tahun ? ' · TA ' + esc(x.tahun) : ' · belum ada rombel'}</span></a>`; }).join('')}</div>`;
+  const now = new Date();
+  let h = `<div class="dash-welcome">
+    <div>
+      <div class="eyebrow">DASHBOARD</div>
+      <h2>Selamat datang${S.user.role === 'sekolah' ? ', ' + esc(S.user.sekolah_nama || S.user.nama) : ''}</h2>
+      <p>Sistem Informasi Terintegrasi Tata Kelola Guru & Tenaga Kependidikan</p>
+    </div>
+    <div class="dash-date">HARI INI<br><b>${now.getDate()}</b><br>${now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</div>
+  </div>`;
+  if (st.menunggu) h += `<a class="stat wr" href="#/pendaftaran" style="margin-bottom:20px;display:block"><b>${st.menunggu}</b>Pendaftaran sekolah menunggu verifikasi</a>`;
+  h += `<div class="dash-section"><div class="section-heading"><h3>Ringkasan Data</h3><p class="mu">Klik kartu untuk membuka menu</p></div><div class="dash-kpis">`;
+  keys.filter(k => k !== 'pendaftaran').forEach(k => {
+    h += `<a class="kpi-card" href="#/${k}" style="text-decoration:none;color:inherit"><div class="kpi-icon">📊</div><div><b>${st.counts[k]}</b><small>${esc(S.schema[k].title)}</small></div></a>`;
+  });
+  h += `</div></div>`;
+  if (S.schema.rombel && st.kek) {
+    h += `<div class="dash-section"><div class="section-heading"><h3>Kebutuhan Guru</h3><a class="text-link" href="#/kebutuhan">Lihat analisis →</a></div><div class="dash-kpis">`;
+    ['TK', 'SD', 'SMP'].forEach(j => {
+      const x = st.kek[j] || { kurang: 0, lebih: 0 };
+      h += `<div class="kpi-card"><div class="kpi-icon" style="background:#fef3c7;color:#d97706">👨‍🏫</div><div><b style="color:var(--er)">${fnum(x.kurang)}</b><small>Guru kurang — ${j}<br>Lebih: ${fnum(x.lebih)}</small></div></div>`;
+    });
+    h += `</div></div>`;
+  }
   $('#view').innerHTML = h;
 }
 
@@ -456,10 +474,49 @@ function filtered() {
   });
 }
 function drawTable() {
-  const ent = V.ent, list = filtered(), cols = ent.fields.filter(f => !f.h && !f.v), per = 15;
+  const ent = V.ent, list = filtered(), can = o => ent.ops.includes(o);
+  if (V.id === 'rombel') {
+    $('#extra').innerHTML = '<div class="card mu" style="margin-bottom:12px">Ringkasan jumlah rombel per sekolah. Klik <b>Lihat Rombel</b> untuk melihat detail kelas. Data ini digunakan untuk menghitung Kebutuhan Guru.</div>';
+    // Aggregate by npsn + tahun_ajaran
+    const groups = {};
+    list.forEach(r => {
+      const key = (r.npsn || '') + '|' + (r.tahun_ajaran || '');
+      if (!groups[key]) {
+        groups[key] = {
+          npsn: r.npsn, nama: refName(r.npsn) || r.npsn, jenjang: r.jenjang, tahun: r.tahun_ajaran,
+          count: 0, siswa: 0, ids: [], rows: []
+        };
+      }
+      groups[key].count++;
+      groups[key].siswa += Number(r.jumlah_siswa) || 0;
+      groups[key].ids.push(r.id);
+      groups[key].rows.push(r);
+    });
+    const gList = Object.values(groups).sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
+    const per = 15, pages = Math.max(1, Math.ceil(gList.length / per));
+    if (V.page > pages) V.page = pages;
+    const slice = gList.slice((V.page - 1) * per, V.page * per);
+    $('#tbl').innerHTML = gList.length ? `<div class="tw"><table><thead><tr>
+      <th>#</th><th>Sekolah</th><th>Jenjang</th><th>Tahun Ajaran</th><th>Jumlah Rombel</th><th>Total Siswa</th><th></th>
+    </tr></thead><tbody>
+    ${slice.map((g, i) => `<tr>
+      <td>${(V.page - 1) * per + i + 1}</td>
+      <td>${esc(g.nama)}</td>
+      <td><span class="badge">${esc(g.jenjang || '–')}</span></td>
+      <td>${esc(g.tahun || '–')}</td>
+      <td><b>${g.count}</b></td>
+      <td>${g.siswa}</td>
+      <td class="act"><button class="btn sm sec" data-a="rombel-detail" data-key="${esc(g.npsn + '|' + g.tahun)}">Lihat Rombel</button></td>
+    </tr>`).join('')}
+    </tbody></table></div>
+    <div class="pager"><span>${gList.length} sekolah</span><button class="btn sm sec" data-a="prev"${V.page <= 1 ? ' disabled' : ''}>‹</button><span>${V.page} / ${pages}</span><button class="btn sm sec" data-a="next"${V.page >= pages ? ' disabled' : ''}>›</button></div>`
+    : '<div class="empty">Belum ada data rombel.</div>';
+    return;
+  }
+  // normal table for other entities
+  const cols = ent.fields.filter(f => !f.h && !f.v), per = 15;
   const pages = Math.max(1, Math.ceil(list.length / per)); if (V.page > pages) V.page = pages;
-  const slice = list.slice((V.page - 1) * per, V.page * per), can = o => ent.ops.includes(o);
-  if (V.id === 'rombel') $('#extra').innerHTML = '<div class="card mu" style="margin-bottom:12px">Data rombel dipakai untuk menghitung <b>Kebutuhan Guru</b> secara otomatis. Satu baris = satu rombel (kelas). Isi <b>Jumlah Siswa</b> agar kebutuhan guru BK (SMP) dapat dihitung.</div>';
+  const slice = list.slice((V.page - 1) * per, V.page * per);
   const act = r => {
     let a = `<button class="btn sm sec" data-a="view" data-id="${esc(r.id)}">Detail</button> `;
     if (V.id === 'pendaftaran' && r.status === 'Menunggu') a += `<button class="btn sm" data-a="ok" data-id="${esc(r.id)}">Setujui</button> <button class="btn sm sec" data-a="no" data-id="${esc(r.id)}">Tolak</button> `;
@@ -472,11 +529,24 @@ function drawTable() {
     <div class="pager"><span>${list.length} data</span><button class="btn sm sec" data-a="prev"${V.page <= 1 ? ' disabled' : ''}>‹</button><span>${V.page} / ${pages}</span><button class="btn sm sec" data-a="next"${V.page >= pages ? ' disabled' : ''}>›</button></div>`
     : '<div class="empty">Belum ada data.</div>';
 }
+
 async function onTblClick(e) {
   const b = e.target.closest('[data-a]'); if (!b) return;
-  const a = b.dataset.a, rec = V.rows.find(r => r.id === b.dataset.id);
+  const a = b.dataset.a;
   if (a === 'prev') { V.page--; return drawTable(); }
   if (a === 'next') { V.page++; return drawTable(); }
+  if (a === 'rombel-detail') {
+    const key = b.dataset.key;
+    const [npsn, tahun] = key.split('|');
+    const detailRows = V.rows.filter(r => r.npsn === npsn && (r.tahun_ajaran || '') === tahun);
+    const html = detailRows.length ? `<div class="tw" style="max-height:400px"><table><thead><tr><th>Nama Rombel</th><th>Tingkat</th><th>Jumlah Siswa</th><th></th></tr></thead><tbody>
+      ${detailRows.map(r => `<tr><td>${esc(r.nama_rombel || '–')}</td><td>${esc(r.tingkat || '–')}</td><td>${esc(r.jumlah_siswa || '–')}</td>
+      <td class="act"><button class="btn sm sec" data-a="view" data-id="${esc(r.id)}">Detail</button> <button class="btn sm sec" data-a="edit" data-id="${esc(r.id)}">Ubah</button> <button class="btn sm dan" data-a="del" data-id="${esc(r.id)}">Hapus</button></td></tr>`).join('')}
+    </tbody></table></div>` : '<div class="empty">Tidak ada rombel.</div>';
+    modal('Detail Rombel — ' + esc(refName(npsn) || npsn), html, async () => {}, { ok: 'Tutup', cancel: 'Batal' });
+    return;
+  }
+  const rec = V.rows.find(r => r.id === b.dataset.id);
   try {
     if (a === 'view') return openView(rec);
     if (a === 'edit') return openForm(rec);
@@ -485,6 +555,7 @@ async function onTblClick(e) {
     if (a === 'no') { const c = prompt('Alasan penolakan (akan terlihat oleh pendaftar):'); if (c === null) return; await api('reject', { id: rec.id, catatan: c }); toast('Pendaftaran ditolak'); await V.reload(); }
   } catch (er) { toast(er.message, 'er'); }
 }
+
 function openView(rec) {
   modal('Detail', `<dl>${V.ent.fields.filter(f => !f.v && !f.calc || f.calc).map(f => `<dt>${esc(f.l)}</dt><dd>${cell(f, rec[f.k])}</dd>`).join('')}</dl>`, async () => {}, { ok: 'Tutup', cancel: 'Batal' });
 }
