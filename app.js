@@ -15,7 +15,7 @@ const MENU = [
   { id: 'pegawai', t: 'Pegawai Disdik' },
   { g: 'Satuan Pendidikan', items: [
     { id: 'sekolah', t: 'Data Sekolah' }, { id: 'guru', t: 'Data Guru' }, { id: 'kepsek', t: 'Data Kepala Sekolah' },
-    { id: 'lokasi', t: 'Lokasi Sekolah' }, { id: 'kebutuhan', t: 'Kebutuhan Guru' }] },
+    { id: 'lokasi', t: 'Lokasi Sekolah' }, { id: 'rombel', t: 'Data Rombel' }, { id: 'kebutuhan', t: 'Kebutuhan Guru' }] },
   { id: 'mutasi', t: 'Mutasi' },
   { id: 'mediasi', t: 'Mediasi Perceraian' },
   { id: 'disiplin', t: 'Pembinaan Disiplin' },
@@ -85,9 +85,7 @@ function modal(title, body, onSubmit, opt = {}) {
   return m;
 }
 function inputHTML(f, val, req) {
-  const id = 'f_' + f.k, rq = req ? ' required' : '';
-  let v = val == null ? '' : val;
-  if (f.k === 'status') v = ({ 'Honorer': 'Guru Honor Sekolah', 'GTT': 'Guru Honor Sekolah', 'GTY': 'GTY/PTY', 'PTY': 'GTY/PTY', 'PPPK PW': 'PPPK Paruh Waktu' })[String(v)] || v;
+  const id = 'f_' + f.k, rq = req ? ' required' : '', v = val == null ? '' : val;
   if (f.t === 'textarea') return `<textarea id="${id}" rows="3"${rq}>${esc(v)}</textarea>`;
   if (f.t === 'select') return `<select id="${id}"${rq}><option value="">— pilih —</option>${f.o.map(o => `<option${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
   if (f.t === 'ref') return `<select id="${id}"${rq}><option value="">— pilih sekolah —</option>${S.refs.map(s => `<option value="${esc(s.npsn)}"${s.npsn === v ? ' selected' : ''}>${esc(s.nama)} (${esc(s.jenjang)}) · ${esc(s.npsn)}</option>`).join('')}</select>`;
@@ -204,19 +202,17 @@ async function doLogout(expired) {
 /* ---------- shell ---------- */
 function init(r) {
   S.user = r.user; S.schema = r.schema; S.refs = r.refs;
-  $('#root').innerHTML = `<div class="app"><aside id="side"><div class="brand">${esc(CFG.APP_NAME || 'DIKO')}<small>${esc(S.user.sekolah_nama || CFG.APP_SUB || 'Dinas Pendidikan Kotawaringin Timur')}</small><button type="button" id="nav-toggle" class="nav-toggle" title="Ringkas navigasi" aria-label="Ringkas navigasi">‹</button></div><nav id="nav"></nav></aside>
+  $('#root').innerHTML = `<div class="app"><aside id="side"><div class="brand">${esc(CFG.APP_NAME || 'SIM Disdik')}<small>${esc(S.user.sekolah_nama || CFG.APP_SUB || '')}</small></div><nav id="nav"></nav></aside>
     <div class="main"><header><button class="btn sec sm" id="burger" aria-label="Menu">☰</button><h1 id="ttl"></h1><div class="sp"></div>
     <span class="who">${esc(S.user.nama)} <span class="badge">${ROLE[S.user.role]}</span></span>
     <button class="btn sec sm" id="wa">No. WA</button><button class="btn sec sm" id="pw">Ubah Password</button><button class="btn sec sm" id="out">Keluar</button></header><main id="view"></main></div></div><div id="scrim"></div>`;
   $('#burger').onclick = () => document.body.classList.toggle('nav-open');
   $('#scrim').onclick = () => document.body.classList.remove('nav-open');
-  $('#nav-toggle').onclick = () => document.body.classList.toggle('nav-compact');
   $('#out').onclick = () => doLogout(false);
   $('#pw').onclick = openPw;
   $('#wa').onclick = openWa;
-  const allowed = id => id === 'dashboard' || (id === 'lokasi' ? !!S.schema.sekolah : !!S.schema[id]);
-  const navIcons = { dashboard:'▦', pegawai:'♙', sekolah:'⌂', guru:'♧', kepsek:'★', lokasi:'⌖', kebutuhan:'▤', mutasi:'⇄', mediasi:'◉', disiplin:'▣', usul_plt:'↗', usul_definitif:'◆', pendaftaran:'＋', users:'♙' };
-  const link = i => `<a href="#/${i.id}" data-id="${i.id}" title="${esc(i.t)}"><span class="nav-ico">${navIcons[i.id] || '•'}</span><span class="nav-label">${esc(i.t)}</span></a>`;
+  const allowed = id => id === 'dashboard' || (id === 'lokasi' ? !!S.schema.sekolah : id === 'kebutuhan' ? !!S.schema.rombel : !!S.schema[id]);
+  const link = i => `<a href="#/${i.id}" data-id="${i.id}">${esc(i.t)}</a>`;
   $('#nav').innerHTML = MENU.map(m => {
     if (m.g) { const its = m.items.filter(i => allowed(i.id)); return its.length ? `<div class="grp">${esc(m.g)}</div>` + its.map(link).join('') : ''; }
     return allowed(m.id) ? link(m) : '';
@@ -231,7 +227,7 @@ async function route() {
   $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.id === id));
   document.body.classList.remove('nav-open');
   if (MAP) { MAP.remove(); MAP = null; }
-  try { id === 'dashboard' ? await pageDash() : id === 'lokasi' ? await pageLokasi() : await pageEntity(id); }
+  try { id === 'dashboard' ? await pageDash() : id === 'lokasi' ? await pageLokasi() : id === 'kebutuhan' ? await pageKebutuhan() : await pageEntity(id); }
   catch (e) { $('#view').innerHTML = `<div class="card err">${esc(e.message)}</div>`; }
 }
 window.addEventListener('hashchange', route);
@@ -258,40 +254,179 @@ function openWa() {
 
 /* ---------- dashboard ---------- */
 async function pageDash() {
-  $('#ttl').textContent = 'Dashboard';
-  $('#view').innerHTML = '<div class="card mu">Memuat ringkasan data pendidikan…</div>';
-  const st = await api('stats');
-  const canSchools = !!S.schema.sekolah, canTeachers = !!S.schema.guru;
-  const [schools, teachers] = await Promise.all([
-    canSchools ? api('list', { entity: 'sekolah' }).then(x => x.rows) : [],
-    canTeachers ? api('list', { entity: 'guru' }).then(x => x.rows) : []
-  ]);
-  const jenjang = ['TK', 'SD', 'SMP'];
-  const schoolCount = (j, status) => schools.filter(r => r.jenjang === j && (!status || r.status_sekolah === status)).length;
-  const studentCount = j => schools.filter(r => r.jenjang === j).reduce((n, r) => n + (Number(r.jumlah_siswa) || 0), 0);
-  const teacherStatuses = ['CPNS', 'GTY/PTY', 'PNS', 'PNS Depag', 'PPPK', 'PPPK Paruh Waktu', 'Guru Honor Sekolah', 'Honor Daerah TK.I Provinsi', 'Honor Daerah TK.II Kab/Kota', 'Lainnya', 'Tenaga Honor Sekolah'];
-  const normTeacherStatus = v => { const x=String(v||'').trim().toUpperCase().replace(/\s+/g,' '); return x === 'PPPK PW' ? 'PPPK PARUH WAKTU' : x === 'GTY' || x === 'PTY' ? 'GTY/PTY' : x === 'HONORER' || x === 'GTT' ? 'GURU HONOR SEKOLAH' : x; };
-  const teacherCount = s => teachers.filter(r => normTeacherStatus(r.status) === normTeacherStatus(s)).length;
-  const totalSchools = schools.length;
-  const totalTeachers = teachers.length;
-  const totalStudents = schools.reduce((n, r) => n + (Number(r.jumlah_siswa) || 0), 0);
-  const maxSchool = Math.max(1, ...jenjang.map(j => schoolCount(j)));
-  const maxTeacher = Math.max(1, ...teacherStatuses.map(s => teacherCount(s)));
-  let h = `<div class="dash-welcome"><div><div class="eyebrow">DINAS PENDIDIKAN KABUPATEN KOTAWARINGIN TIMUR</div><h2>${S.user.role === 'sekolah' ? 'Selamat datang, ' + esc(S.user.sekolah_nama || S.user.nama) : 'Ringkasan Data Pendidikan'}</h2><p>Pantau satuan pendidikan, tenaga pendidik, dan peserta didik dalam satu tampilan.</p></div><div class="dash-date">DATA TERINTEGRASI<br><b>DIKO</b></div></div>`;
+  $('#ttl').textContent = 'Dashboard'; $('#view').innerHTML = '<div class="card mu">Memuat…</div>';
+  const st = await api('stats'), keys = Object.keys(st.counts);
+  let h = '';
+  if (S.user.role === 'sekolah') h += `<div class="card"><h3>Selamat datang, ${esc(S.user.sekolah_nama || S.user.nama)}</h3><span class="mu">Kelola data sekolah, guru, kepala sekolah, rombel, dan usul mutasi dari menu di samping.</span></div>`;
   if (st.menunggu) h += `<a class="stat wr" href="#/pendaftaran" style="margin-bottom:16px"><b>${st.menunggu}</b>Pendaftaran sekolah menunggu verifikasi</a>`;
-  if (canSchools) {
-    h += `<section class="dash-section"><div class="section-heading"><div><h3>Satuan Pendidikan</h3><p class="mu">Jumlah sekolah negeri dan swasta menurut jenjang</p></div><a href="#/sekolah" class="text-link">Lihat data sekolah →</a></div>
-      <div class="dash-kpis"><div class="kpi-card"><span class="kpi-icon">▣</span><div><b>${totalSchools.toLocaleString('id-ID')}</b><small>Total Sekolah</small></div></div><div class="kpi-card"><span class="kpi-icon">♧</span><div><b>${totalTeachers.toLocaleString('id-ID')}</b><small>Total Guru</small></div></div><div class="kpi-card"><span class="kpi-icon">♙</span><div><b>${totalStudents.toLocaleString('id-ID')}</b><small>Total Siswa</small></div></div></div>
-      <div class="dash-grid"><div class="dash-panel"><div class="panel-title"><b>Sekolah per Jenjang</b><span class="mu">Negeri & Swasta</span></div><div class="legend"><span><i class="legend-dot negeri"></i>Negeri</span><span><i class="legend-dot swasta"></i>Swasta</span></div>
-      ${jenjang.map(j => { const n=schoolCount(j,'Negeri'), s=schoolCount(j,'Swasta'), total=n+s; return `<div class="bar-row"><div class="bar-label"><b>${j}</b><span>${total.toLocaleString('id-ID')} sekolah</span></div><div class="stack-track"><i class="stack negeri" style="width:${(n/maxSchool*100).toFixed(1)}%"></i><i class="stack swasta" style="width:${(s/maxSchool*100).toFixed(1)}%"></i></div><div class="bar-values"><span>Negeri ${n}</span><span>Swasta ${s}</span></div></div>`; }).join('')}</div>
-      <div class="dash-panel"><div class="panel-title"><b>Jumlah Peserta Didik</b><span class="mu">Berdasarkan data sekolah</span></div><div class="student-list">${jenjang.map((j,i)=>`<div class="student-item"><span class="student-mark m${i}">${j}</span><div class="student-info"><div><b>${studentCount(j).toLocaleString('id-ID')}</b><small>Siswa ${j}</small></div><div class="mini-track"><i style="width:${(totalStudents?studentCount(j)/totalStudents*100:0).toFixed(1)}%"></i></div></div></div>`).join('')}</div><div class="student-total"><span>Total Peserta Didik</span><b>${totalStudents.toLocaleString('id-ID')}</b></div></div></div></section>`;
-  }
-  if (canTeachers) {
-    h += `<section class="dash-section"><div class="section-heading"><div><h3>Tenaga Pendidik</h3><p class="mu">Jumlah guru berdasarkan status kepegawaian</p></div><a href="#/guru" class="text-link">Lihat data guru →</a></div><div class="dash-panel teacher-panel"><div class="teacher-total"><b>${totalTeachers.toLocaleString('id-ID')}</b><span>Total Data Guru</span></div><div class="teacher-bars">${teacherStatuses.map((s,i)=>{const n=teacherCount(s);return `<div class="teacher-row"><div class="teacher-label"><span class="teacher-dot t${i}"></span><b>${s}</b><strong>${n.toLocaleString('id-ID')}</strong></div><div class="teacher-track"><i class="t${i}" style="width:${(n/maxTeacher*100).toFixed(1)}%"></i></div></div>`}).join('')}</div></div></section>`;
-  }
-  if (S.schema.kebutuhan) h += `<section class="dash-section"><div class="section-heading"><div><h3>Kebutuhan Guru</h3><p class="mu">Rekap kekurangan guru per jenjang</p></div><a href="#/kebutuhan" class="text-link">Lihat rincian →</a></div><div class="cards">${jenjang.map(j => `<a class="stat" href="#/kebutuhan"><b>${st.kekurangan[j] || 0}</b>Guru kurang — ${j}</a>`).join('')}</div></section>`;
-  if (!canSchools && !canTeachers) h += `<div class="cards">${Object.keys(st.counts).filter(k => S.schema[k]).map(k => `<a class="stat" href="#/${k}"><b>${st.counts[k]}</b>${esc(S.schema[k].title)}</a>`).join('')}</div>`;
+  h += `<h3>Ringkasan Data</h3><div class="cards">${keys.filter(k => k !== 'pendaftaran').map(k => `<a class="stat" href="#/${k}"><b>${st.counts[k]}</b>${esc(S.schema[k].title)}</a>`).join('')}</div>`;
+  if (S.schema.rombel && st.kek) h += `<h3>Kekurangan &amp; Kelebihan Guru (dihitung dari rombel)</h3><div class="cards">${['TK', 'SD', 'SMP'].map(j => { const x = st.kek[j] || { kurang: 0, lebih: 0 }; return `<a class="stat" href="#/kebutuhan"><b style="color:var(--er)">${fnum(x.kurang)}</b>Guru kurang — ${j}<br><span class="mu">Lebih ${fnum(x.lebih)}${x.tahun ? ' · TA ' + esc(x.tahun) : ' · belum ada rombel'}</span></a>`; }).join('')}</div>`;
   $('#view').innerHTML = h;
+}
+
+/* ---------- kebutuhan guru: dihitung otomatis dari data rombel ---------- */
+const fnum = n => String(Math.round((Number(n) || 0) * 10) / 10).replace('.', ',');
+const taNow = () => { const d = new Date(), y = d.getFullYear(), a = d.getMonth() >= 6 ? y : y - 1; return a + '/' + (a + 1); };
+const K = { jenjang: 'SD', tahun: '', hitung: 'semua', q: '', st: '', d: null };
+const HITUNG = { semua: 'Semua guru terdata', asn: 'Hanya PNS + PPPK' };
+const STFLT = { '': 'Semua status', kurang: 'Ada kekurangan guru', lebih: 'Ada kelebihan guru', sesuai: 'Sudah sesuai', kosong: 'Rombel belum diisi' };
+const stOk = (r, f) => !f || (f === 'kurang' && r.kurang > 0) || (f === 'lebih' && r.lebih > 0) || (f === 'sesuai' && r.status === 'Sesuai') || (f === 'kosong' && !r.ada_rombel);
+const stBadge = s => `<span class="badge ${{ 'Sesuai': 'ok', 'Kurang': 'er', 'Kurang & Lebih': 'er', 'Lebih': 'wr' }[s] || ''}">${esc(s)}</span>`;
+const nK = v => v > 0 ? `<b style="color:var(--er)">${fnum(v)}</b>` : '<span class="mu">0</span>';
+const nL = v => v > 0 ? `<b style="color:#b54708">${fnum(v)}</b>` : '<span class="mu">0</span>';
+const kStd = k => K.d.standar.kat.find(x => x.k === k) || { n: k, rumus: '' };
+const ktitle = () => `Analisis Kebutuhan Guru ${K.jenjang} — Tahun Ajaran ${K.d.tahun}`;
+
+async function pageKebutuhan() {
+  $('#ttl').textContent = 'Kebutuhan Guru';
+  $('#view').innerHTML = '<div class="card mu">Memuat…</div>';
+  await loadK();
+}
+async function loadK() {
+  const d = await api('analisis', { jenjang: K.jenjang, tahun: K.tahun, hitung: K.hitung });
+  K.d = d; K.tahun = d.tahun; drawK();
+}
+const kSafe = async fn => { try { await fn(); } catch (e) { toast(e.message, 'er'); } };
+
+function kList() {
+  const q = K.q.toLowerCase();
+  return K.d.rows.filter(r => stOk(r, K.st) && (!q || (r.nama + ' ' + r.npsn + ' ' + r.kecamatan).toLowerCase().includes(q)))
+    .sort((a, b) => b.kurang - a.kurang || String(a.kecamatan).localeCompare(b.kecamatan) || String(a.nama).localeCompare(b.nama));
+}
+
+function drawK() {
+  const d = K.d, t = d.total;
+  const tabs = ['TK', 'SD', 'SMP'].map(j => `<button class="btn${j === K.jenjang ? '' : ' sec'}" data-j="${j}">${j}</button>`).join(' ');
+  if (!d.tahunList.length) {
+    $('#view').innerHTML = `<div class="card"><div class="tools">${tabs}</div></div><div class="card"><div class="empty">Belum ada data rombel ${esc(K.jenjang)}. Kebutuhan guru dihitung otomatis dari rombel — isi atau impor dulu di menu <a href="#/rombel"><b>Data Rombel</b></a>.</div></div>`;
+    return bindK();
+  }
+  const kurS = (t.status['Kurang'] || 0) + (t.status['Kurang & Lebih'] || 0), lebS = (t.status['Lebih'] || 0) + (t.status['Kurang & Lebih'] || 0);
+  const rekap = d.kategori.map(c => `<tr><td>${esc(c.n)}</td><td class="mu">${esc(c.rumus)}</td><td>${fnum(c.butuh)}</td><td>${fnum(c.ada)}</td><td>${nK(c.kurang)}</td><td>${nL(c.lebih)}</td></tr>`).join('');
+  $('#view').innerHTML = `
+  <div class="card"><div class="tools">${tabs}
+    <select id="kth">${d.tahunList.map(x => `<option${x === d.tahun ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>
+    <select id="khit">${Object.keys(HITUNG).map(k => `<option value="${k}"${k === K.hitung ? ' selected' : ''}>${HITUNG[k]}</option>`).join('')}</select>
+    <div class="sp"></div>
+    <button class="btn sec" id="kp1">Cetak Rekap</button><button class="btn sec" id="kp2">Cetak + Rincian Sekolah</button><button class="btn sec" id="kcsv">Ekspor CSV</button></div>
+    <p class="mu" style="margin:10px 0 0">${esc(ktitle())} · Guru yang dihitung: ${esc(HITUNG[K.hitung])}</p></div>
+  <div class="cards">
+    <div class="stat"><b>${t.sekolah_rombel}<small class="mu"> / ${t.sekolah}</small></b>Sekolah (ada rombel / seluruhnya)</div>
+    <div class="stat"><b>${t.rombel}</b>Rombel · ${t.siswa} siswa</div>
+    <div class="stat"><b>${fnum(t.butuh)}</b>Guru dibutuhkan</div>
+    <div class="stat"><b>${fnum(t.ada)}</b>Guru tersedia</div>
+    <div class="stat"><b style="color:var(--er)">${fnum(t.kurang)}</b>KEKURANGAN guru</div>
+    <div class="stat"><b style="color:#b54708">${fnum(t.lebih)}</b>KELEBIHAN guru</div>
+  </div>
+  <div class="card"><p style="margin:0">Sekolah kurang guru: <b>${kurS}</b> · kelebihan guru: <b>${lebS}</b> · sudah sesuai: <b>${t.status['Sesuai'] || 0}</b> · rombel belum diisi: <b>${t.status['Rombel belum diisi'] || 0}</b></p>
+    <p class="mu" style="margin:6px 0 0"><b>Kurang</b> = guru yang ada lebih sedikit dari kebutuhan. <b>Lebih</b> = guru yang ada melebihi kebutuhan. Dihitung per jenis guru, jadi kelebihan satu jenis tidak menutup kekurangan jenis lain.</p></div>
+  <div class="card"><h3 style="margin-top:0">Rekap per jenis guru</h3><div class="tw"><table><thead><tr><th>Jenis guru</th><th>Cara menghitung (per sekolah)</th><th>Dibutuhkan</th><th>Ada</th><th>Kurang</th><th>Lebih</th></tr></thead><tbody>${rekap}</tbody></table></div>
+    <details style="margin-top:10px"><summary><b>Bagaimana cara menghitungnya?</b></summary>
+      <ol class="mu">
+        <li>Kebutuhan dihitung dari <b>jumlah rombel</b> tiap sekolah (menu Data Rombel) dengan rumus pada tabel di atas. Beban 1 guru = <b>${d.standar.beban} jam tatap muka</b> per minggu.</li>
+        <li>Hasil hitung dibulatkan ke angka terdekat; jenis guru yang diperlukan minimal <b>1 orang</b>.</li>
+        <li>Guru yang ada diambil dari <b>Data Guru</b> sekolah tersebut, dikelompokkan dari isian <i>Mata Pelajaran</i>. Guru yang mengampu beberapa mapel dibagi rata.</li>
+        <li>Dasar: Juknis Peraturan Bersama 5 Menteri (2011) tentang penataan dan pemerataan guru PNS. Jam pelajaran dan standar TK dapat disesuaikan oleh pengelola aplikasi.</li>
+      </ol></details></div>
+  <div class="card"><div class="tools"><input id="kq" placeholder="Cari sekolah / NPSN / kecamatan…" value="${esc(K.q)}">
+    <select id="kst">${Object.keys(STFLT).map(k => `<option value="${k}"${k === K.st ? ' selected' : ''}>${STFLT[k]}</option>`).join('')}</select></div>
+    <div id="ktbl"></div></div>`;
+  bindK(); drawKT();
+}
+
+function kRowHTML(r, i, print) {
+  const st = print ? `<span class="${r.kurang > 0 ? 'k' : r.lebih > 0 ? 'l' : ''}">${esc(r.status)}</span>` : stBadge(r.status);
+  const k = print ? (r.kurang > 0 ? `<span class="k">${fnum(r.kurang)}</span>` : '0') : nK(r.kurang);
+  const l = print ? (r.lebih > 0 ? `<span class="l">${fnum(r.lebih)}</span>` : '0') : nL(r.lebih);
+  const num = v => r.ada_rombel ? v : '–';
+  return `<tr><td>${i + 1}</td><td>${esc(r.nama)}<br><span class="${print ? 'note' : 'mu'}">${esc(r.npsn)}</span></td><td>${esc(r.kecamatan)}</td><td>${r.rombel}</td><td>${r.siswa}</td><td>${num(r.butuh)}</td><td>${fnum(r.ada)}</td><td>${r.ada_rombel ? k : '–'}</td><td>${r.ada_rombel ? l : '–'}</td><td>${st}</td>${print ? '' : `<td><button class="btn sm sec" data-n="${esc(r.npsn)}">Rincian</button></td>`}</tr>`;
+}
+const kHead = print => `<thead><tr><th>No</th><th>Sekolah</th><th>Kecamatan</th><th>Rombel</th><th>Siswa</th><th>Dibutuhkan</th><th>Ada</th><th>Kurang</th><th>Lebih</th><th>Status</th>${print ? '' : '<th></th>'}</tr></thead>`;
+function drawKT() {
+  const list = kList();
+  $('#ktbl').innerHTML = list.length
+    ? `<p class="mu" style="margin:0 0 8px">${list.length} sekolah</p><div class="tw" style="max-height:560px"><table>${kHead(false)}<tbody>${list.map((r, i) => kRowHTML(r, i, false)).join('')}</tbody></table></div>`
+    : '<div class="empty">Tidak ada sekolah yang cocok.</div>';
+}
+function bindK() {
+  $$('[data-j]').forEach(b => b.onclick = () => kSafe(async () => { K.jenjang = b.dataset.j; K.tahun = ''; K.q = ''; K.st = ''; await loadK(); }));
+  const on = (id, ev, fn) => { const e = $(id); if (e) e[ev] = fn; };
+  on('#kth', 'onchange', e => kSafe(async () => { K.tahun = e.target.value; await loadK(); }));
+  on('#khit', 'onchange', e => kSafe(async () => { K.hitung = e.target.value; await loadK(); }));
+  on('#kq', 'oninput', e => { K.q = e.target.value; drawKT(); });
+  on('#kst', 'onchange', e => { K.st = e.target.value; drawKT(); });
+  on('#kp1', 'onclick', () => printK(false));
+  on('#kp2', 'onclick', () => printK(true));
+  on('#kcsv', 'onclick', exportK);
+  on('#ktbl', 'onclick', e => { const b = e.target.closest('[data-n]'); if (b) openKDetail(b.dataset.n); });
+}
+
+function kSel(a, b, print) {
+  const s = Math.round((a - b) * 10) / 10;
+  if (s < 0) return print ? `<span class="k">Kurang ${fnum(-s)}</span>` : `<span class="badge er">Kurang ${fnum(-s)}</span>`;
+  if (s > 0) return print ? `<span class="l">Lebih ${fnum(s)}</span>` : `<span class="badge wr">Lebih ${fnum(s)}</span>`;
+  return print ? 'Sesuai' : '<span class="badge ok">Sesuai</span>';
+}
+function kDetail(r, print) {
+  if (!r.ada_rombel) return `<p>Data rombel sekolah ini belum diisi untuk tahun ajaran ${esc(K.d.tahun)}, sehingga kebutuhan belum dapat dihitung.</p>`;
+  const kur = r.detail.filter(x => x.kurang > 0).map(x => `${esc(kStd(x.k).n)} ${fnum(x.kurang)}`);
+  const leb = r.detail.filter(x => x.lebih > 0).map(x => `${esc(kStd(x.k).n)} ${fnum(x.lebih)}`);
+  let h = `<p>Sekolah ini memiliki <b>${r.rombel} rombel</b> (${r.siswa} siswa). Dibutuhkan <b>${r.butuh} guru</b>, tersedia <b>${fnum(r.ada)}</b> guru.`
+    + (kur.length ? ` <b>Kurang:</b> ${kur.join(', ')}.` : '') + (leb.length ? ` <b>Lebih:</b> ${leb.join(', ')}.` : '')
+    + (!kur.length && !leb.length ? ' Jumlah guru sudah sesuai kebutuhan.' : '') + '</p>';
+  if (K.jenjang === 'SMP' && !r.siswa) h += '<p class="mu">Catatan: jumlah siswa belum terisi di Data Rombel, sehingga kebutuhan guru BK belum terhitung.</p>';
+  if (r.lain > 0) h += `<p class="mu">Catatan: ${fnum(r.lain)} guru belum dapat dikelompokkan (isian Mata Pelajaran kosong/tidak dikenali) sehingga tidak masuk perhitungan. Periksa di Data Guru.</p>`;
+  h += `<div class="tw"><table><thead><tr><th>Jenis guru</th><th>Cara menghitung</th><th>Hasil hitung</th><th>Dibutuhkan</th><th>Ada</th><th>Selisih</th></tr></thead><tbody>${r.detail.map(x => `<tr><td>${esc(kStd(x.k).n)}</td><td>${esc(kStd(x.k).rumus)}</td><td>${fnum(Math.round(x.des * 100) / 100).replace(/^(\d+)$/, '$1')}</td><td>${x.butuh}</td><td>${fnum(x.ada)}</td><td>${kSel(x.ada, x.butuh, print)}</td></tr>`).join('')}</tbody></table></div>`;
+  return h;
+}
+function openKDetail(npsn) {
+  const r = K.d.rows.find(x => x.npsn === npsn); if (!r) return;
+  const m = modal(r.nama, `<p class="mu" style="margin-top:0">NPSN ${esc(r.npsn)} · ${esc(r.kecamatan)} · TA ${esc(K.d.tahun)}</p>${kDetail(r, false)}<div style="margin-top:12px"><button type="button" class="btn sec" id="kdp">Cetak rincian sekolah ini</button></div>`, async () => {}, { ok: 'Tutup' });
+  $('#kdp', m).onclick = () => printDoc('Rincian Kebutuhan Guru — ' + r.nama, `<h1>RINCIAN KEBUTUHAN GURU</h1><div class="sub">${esc(r.nama)} · NPSN ${esc(r.npsn)} · ${esc(r.kecamatan)}<br>Tahun Ajaran ${esc(K.d.tahun)} · Guru dihitung: ${esc(HITUNG[K.hitung])}</div>${kDetail(r, true)}${kSign()}`, false);
+}
+
+/* ---------- cetak & ekspor ---------- */
+function printDoc(title, body, land = true) {
+  const w = window.open('', '_blank');
+  if (!w) return toast('Pop-up diblokir browser. Izinkan pop-up untuk situs ini lalu coba lagi.', 'er');
+  w.document.write(`<!doctype html><html lang="id"><head><meta charset="utf-8"><title>${esc(title)}</title><style>
+@page{size:A4 ${land ? 'landscape' : 'portrait'};margin:12mm}*{box-sizing:border-box}
+body{font:12px/1.45 Arial,Helvetica,sans-serif;color:#111;margin:0}
+h1{font-size:16px;margin:0 0 2px;text-align:center}h2{font-size:13px;margin:14px 0 4px}
+.sub{text-align:center;margin:0 0 10px;color:#333}
+table{width:100%;border-collapse:collapse;margin:6px 0}th,td{border:1px solid #444;padding:4px 6px;vertical-align:top;text-align:left}
+th{background:#e9edf3}thead{display:table-header-group}tr{page-break-inside:avoid}
+.box{display:flex;gap:8px;margin:8px 0}.box div{flex:1;border:1px solid #444;padding:6px;text-align:center}.box b{display:block;font-size:18px}
+.k{color:#b42318;font-weight:bold}.l{color:#b54708;font-weight:bold}.note,.mu{font-size:11px;color:#444}
+.blk{page-break-inside:avoid;margin-top:12px}.ttd{margin:26px 0 0 auto;width:260px;text-align:center;page-break-inside:avoid}
+</style></head><body>${body}</body></html>`);
+  w.document.close(); w.focus();
+  setTimeout(() => w.print(), 400);
+}
+const kSign = () => `<div class="ttd">............................., ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br>Mengetahui,<br>Kepala Dinas Pendidikan<br><br><br><br>(................................)</div>`;
+function printK(detail) {
+  const d = K.d, t = d.total, list = kList();
+  let b = `<h1>ANALISIS KEBUTUHAN GURU ${esc(K.jenjang)}</h1><div class="sub">Tahun Ajaran ${esc(d.tahun)} · Guru yang dihitung: ${esc(HITUNG[K.hitung])}${K.st || K.q ? '<br>Daftar dibatasi sesuai filter: ' + esc(STFLT[K.st]) + (K.q ? ' · “' + esc(K.q) + '”' : '') : ''}</div>
+  <div class="box"><div><b>${t.sekolah_rombel}/${t.sekolah}</b>Sekolah (ada rombel)</div><div><b>${t.rombel}</b>Rombel</div><div><b>${fnum(t.butuh)}</b>Dibutuhkan</div><div><b>${fnum(t.ada)}</b>Tersedia</div><div><b class="k">${fnum(t.kurang)}</b>Kekurangan</div><div><b class="l">${fnum(t.lebih)}</b>Kelebihan</div></div>
+  <h2>Rekap per jenis guru</h2><table><thead><tr><th>Jenis guru</th><th>Cara menghitung (per sekolah)</th><th>Dibutuhkan</th><th>Ada</th><th>Kurang</th><th>Lebih</th></tr></thead><tbody>${d.kategori.map(c => `<tr><td>${esc(c.n)}</td><td>${esc(c.rumus)}</td><td>${fnum(c.butuh)}</td><td>${fnum(c.ada)}</td><td>${c.kurang > 0 ? `<span class="k">${fnum(c.kurang)}</span>` : 0}</td><td>${c.lebih > 0 ? `<span class="l">${fnum(c.lebih)}</span>` : 0}</td></tr>`).join('')}</tbody></table>
+  <p class="note">Beban 1 guru = ${d.standar.beban} jam tatap muka/minggu. Hasil hitung dibulatkan ke angka terdekat (minimal 1). Selisih dihitung per jenis guru. Dasar: Juknis Peraturan Bersama 5 Menteri (2011).</p>
+  <h2>Daftar sekolah (${list.length})</h2><table>${kHead(true)}<tbody>${list.map((r, i) => kRowHTML(r, i, true)).join('')}</tbody></table>`;
+  if (detail) b += `<h2 style="page-break-before:always">Rincian per sekolah</h2>` + list.filter(r => r.ada_rombel).map(r => `<div class="blk"><b>${esc(r.nama)}</b> <span class="note">NPSN ${esc(r.npsn)} · ${esc(r.kecamatan)}</span>${kDetail(r, true)}</div>`).join('');
+  printDoc(ktitle(), b + kSign(), true);
+}
+function exportK() {
+  const std = K.d.standar.kat, q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const head = ['NPSN', 'Sekolah', 'Kecamatan', 'Rombel', 'Siswa', 'Dibutuhkan', 'Ada', 'Kurang', 'Lebih', 'Status'];
+  std.forEach(c => head.push(c.n + ' (dibutuhkan)', c.n + ' (ada)'));
+  const lines = [head.map(q).join(',')];
+  kList().forEach(r => {
+    const row = [r.npsn, r.nama, r.kecamatan, r.rombel, r.siswa, r.ada_rombel ? r.butuh : '', r.ada, r.kurang, r.lebih, r.status];
+    r.detail.forEach(x => row.push(r.ada_rombel ? x.butuh : '', x.ada));
+    lines.push(row.map(q).join(','));
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+  a.download = `kebutuhan-guru-${K.jenjang}-${K.d.tahun.replace('/', '-')}.csv`; a.click(); URL.revokeObjectURL(a.href);
 }
 
 /* ---------- halaman data generik ---------- */
@@ -324,13 +459,9 @@ function drawTable() {
   const ent = V.ent, list = filtered(), cols = ent.fields.filter(f => !f.h && !f.v), per = 15;
   const pages = Math.max(1, Math.ceil(list.length / per)); if (V.page > pages) V.page = pages;
   const slice = list.slice((V.page - 1) * per, V.page * per), can = o => ent.ops.includes(o);
-  if (V.id === 'kebutuhan') {
-    const tot = {}; V.rows.forEach(r => tot[r.jenjang] = (tot[r.jenjang] || 0) + Number(r.kekurangan || 0));
-    $('#extra').innerHTML = `<div class="cards">${['TK', 'SD', 'SMP'].map(j => `<div class="stat"><b>${tot[j] || 0}</b>Kekurangan guru ${j}</div>`).join('')}</div>`;
-  }
+  if (V.id === 'rombel') $('#extra').innerHTML = '<div class="card mu" style="margin-bottom:12px">Data rombel dipakai untuk menghitung <b>Kebutuhan Guru</b> secara otomatis. Satu baris = satu rombel (kelas). Isi <b>Jumlah Siswa</b> agar kebutuhan guru BK (SMP) dapat dihitung.</div>';
   const act = r => {
-    let a = V.id === 'sekolah' ? `<button class="btn sm sec" data-a="teachers" data-id="${esc(r.id)}">Daftar Guru</button> ` : '';
-    a += `<button class="btn sm sec" data-a="view" data-id="${esc(r.id)}">Detail</button> `;
+    let a = `<button class="btn sm sec" data-a="view" data-id="${esc(r.id)}">Detail</button> `;
     if (V.id === 'pendaftaran' && r.status === 'Menunggu') a += `<button class="btn sm" data-a="ok" data-id="${esc(r.id)}">Setujui</button> <button class="btn sm sec" data-a="no" data-id="${esc(r.id)}">Tolak</button> `;
     if (can('update')) a += `<button class="btn sm sec" data-a="edit" data-id="${esc(r.id)}">Ubah</button> `;
     if (can('delete')) a += `<button class="btn sm dan" data-a="del" data-id="${esc(r.id)}">Hapus</button>`;
@@ -347,7 +478,6 @@ async function onTblClick(e) {
   if (a === 'prev') { V.page--; return drawTable(); }
   if (a === 'next') { V.page++; return drawTable(); }
   try {
-    if (a === 'teachers') return openTeacherRoster(rec);
     if (a === 'view') return openView(rec);
     if (a === 'edit') return openForm(rec);
     if (a === 'del') { if (confirm('Hapus data ini? Tindakan tidak dapat dibatalkan.')) { await api('remove', { entity: V.id, id: rec.id }); toast('Data dihapus', 'ok'); await V.reload(); } return; }
@@ -355,22 +485,12 @@ async function onTblClick(e) {
     if (a === 'no') { const c = prompt('Alasan penolakan (akan terlihat oleh pendaftar):'); if (c === null) return; await api('reject', { id: rec.id, catatan: c }); toast('Pendaftaran ditolak'); await V.reload(); }
   } catch (er) { toast(er.message, 'er'); }
 }
-async function openTeacherRoster(school) {
-  const m = modal('Daftar Guru — ' + school.nama, '<div class="mu">Memuat daftar guru…</div>', async () => {}, { ok: 'Tutup', cancel: 'Tutup' });
-  $('.mf .btn:not(.sec)', m).style.display = 'none';
-  try {
-    const rows = (await api('list', { entity: 'guru' })).rows.filter(r => r.npsn_sekolah === school.npsn).sort((a,b)=>String(a.nama||'').localeCompare(String(b.nama||''),'id'));
-    $('.mb', m).innerHTML = `<div class="roster-summary"><div><b>${rows.length.toLocaleString('id-ID')}</b><span>Guru terdaftar</span></div><div><b>${esc(school.jenjang || '—')}</b><span>Jenjang</span></div><div><b>${esc(school.npsn || '—')}</b><span>NPSN</span></div></div>` +
-      (rows.length ? `<div class="tw"><table><thead><tr><th>No.</th><th>Nama Guru</th><th>NIK</th><th>NUPTK</th><th>NIP</th><th>L/P</th><th>Jenis PTK</th><th>Jabatan PTK</th><th>Status Kepegawaian</th><th>Pendidikan</th><th>Mata Pelajaran</th><th>Nomor HP</th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td><b>${esc(r.nama)}</b></td><td>${esc(r.nik || '—')}</td><td>${esc(r.nuptk || '—')}</td><td>${esc(r.nip || '—')}</td><td>${esc(r.jenis_kelamin || '—')}</td><td>${esc(r.jenis_ptk || '—')}</td><td>${esc(r.jabatan_ptk || '—')}</td><td>${cell({t:'select'},r.status)}</td><td>${esc(r.pendidikan || '—')}</td><td>${esc(r.mapel || '—')}</td><td>${esc(r.no_hp || '—')}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Belum ada data guru yang terhubung dengan sekolah ini.</div>');
-  } catch (e) { $('.mb', m).innerHTML = `<div class="msg">${esc(e.message)}</div>`; }
-}
-
 function openView(rec) {
   modal('Detail', `<dl>${V.ent.fields.filter(f => !f.v && !f.calc || f.calc).map(f => `<dt>${esc(f.l)}</dt><dd>${cell(f, rec[f.k])}</dd>`).join('')}</dl>`, async () => {}, { ok: 'Tutup', cancel: 'Batal' });
 }
 function openForm(rec) {
   const ent = V.ent, isNew = !rec, r = rec || {}, sek = S.user.role === 'sekolah';
-  const flds = ent.fields.filter(f => !f.calc && !(sek && (f.k === ent.scope || f.adm)));
+  const flds = ent.fields.filter(f => !f.calc && !(sek && (f.k === ent.scope || f.adm)) && !(V.id === 'rombel' && f.k === 'jenjang'));
   const hasGeo = flds.some(f => f.k === 'lat') && flds.some(f => f.k === 'lng');
   let body = flds.map(f => fieldWrap(f, isNew ? (f.def || '') : r[f.k], f.t === 'password' ? isNew : f.r)).join('');
   if (hasGeo) body += geoBtn();
@@ -418,10 +538,10 @@ const ALIAS = {
   kecamatan: ['kecamatan'], alamat: ['alamat jalan', 'alamat', 'alamat sekolah'],
   desa: ['desa kelurahan', 'kelurahan', 'desa'],
   no_telp: ['nomor telepon', 'no telepon', 'telepon', 'no telp', 'nomor telp', 'telp'],
-  jumlah_siswa: ['jumlah siswa', 'jml siswa', 'jumlah peserta didik', 'peserta didik'],
+  jumlah_siswa: ['jumlah siswa', 'jml siswa', 'jumlah anggota rombel', 'anggota rombel', 'jumlah peserta didik', 'peserta didik'],
   lat: ['lintang', 'latitude', 'lat'], lng: ['bujur', 'longitude', 'lng', 'long'],
   akreditasi: ['akreditasi'],
-  nip: ['nip'], nuptk: ['nuptk'],
+  nip: ['nip', 'nip nuptk', 'nuptk'], nuptk: ['nuptk'],
   jenis_kelamin: ['jenis kelamin', 'jk', 'l p'],
   jabatan: ['jabatan', 'jabatan ptk'], golongan: ['pangkat golongan', 'golongan', 'pangkat', 'gol'],
   unit_kerja: ['unit kerja', 'bidang unit kerja', 'bidang'],
@@ -431,16 +551,9 @@ const ALIAS = {
   pendidikan: ['pendidikan terakhir', 'pendidikan', 'jenjang pendidikan'],
   tmt_tugas: ['tanggal surat tugas', 'tmt tugas', 'tmt', 'tanggal tugas'],
   status_kepsek: ['status jabatan', 'status kepsek'], no_sk: ['nomor sk', 'no sk', 'sk'], tmt: ['tmt jabatan', 'tmt', 'tmt sk'],
-  nik: ['nik', 'nomor induk kependudukan'], nuptk: ['nuptk'], nip: ['nip'],
-  jenis_kelamin: ['l p', 'l/p', 'jenis kelamin', 'jk'], tempat_lahir: ['tempat lahir'], tanggal_lahir: ['tanggal lahir', 'tgl lahir'],
-  status_tugas: ['status tugas'], tempat_tugas: ['tempat tugas'], npsn_sekolah: ['npsn', 'npsn sekolah'],
-  kabupaten_kota: ['kabupaten kota', 'kabupaten/kota'], sk_cpns: ['sk cpns'], tanggal_cpns: ['tanggal cpns', 'tgl cpns'],
-  sk_pengangkatan: ['sk pengangkatan'], tmt_pengangkatan: ['tmt pengangkatan'], jenis_ptk: ['jenis ptk'], jabatan_ptk: ['jabatan ptk'],
-  bidang_studi_pendidikan: ['bidang studi pendidikan'], bidang_studi_sertifikasi: ['bidang studi sertifikasi'],
-  pangkat_gol: ['pangkat gol', 'pangkat golongan'], tmt_pangkat: ['tmt pangkat'], masa_kerja_tahun: ['masa kerja tahun'],
-  masa_kerja_bulan: ['masa kerja bulan'], jam_mengajar_perminggu: ['jam mengajar perminggu', 'jam mengajar per minggu'],
-  jabatan_kepsek: ['jabatan kepsek'], status: ['status kepegawaian', 'status pegawai'], pendidikan: ['pendidikan'],
-  mapel: ['mata pelajaran diajarkan', 'mata pelajaran', 'mapel'],
+  nama_rombel: ['nama rombel', 'nama rombongan belajar', 'rombel', 'rombongan belajar', 'nama kelas'],
+  tingkat: ['tingkat', 'tingkat pendidikan', 'tingkat kelas', 'kelas'],
+  tahun_ajaran: ['tahun ajaran', 'tahun pelajaran'],
   _sekolah_nama: ['nama sekolah', 'sekolah', 'satuan pendidikan', 'nama satuan pendidikan']
 };
 const ALIAS_ENT = { sekolah: { nama: ['nama sekolah', 'nama', 'nama satuan pendidikan'] } };
@@ -470,7 +583,7 @@ async function openImport() {
   const targets = fields.map(f => ({ k: f.k, l: f.l, r: f.r, t: f.t }))
     .concat(refF ? [{ k: '_sekolah_nama', l: 'Nama Sekolah (untuk mencari sekolah bila tidak ada kolom NPSN)' }] : [])
     .concat(id === 'guru' ? [{ k: 'nuptk', l: 'NUPTK (dipakai bila NIP kosong)' }] : []);
-  const KEYTXT = { sekolah: 'NPSN', guru: 'NIP (atau nama + sekolah bila NIP kosong)', kepsek: 'sekolah (satu kepala sekolah per sekolah)', pegawai: 'NIP' }[id] || 'kunci data';
+  const KEYTXT = { sekolah: 'NPSN', guru: 'NIP (atau nama + sekolah bila NIP kosong)', kepsek: 'sekolah (satu kepala sekolah per sekolah)', pegawai: 'NIP', rombel: 'NPSN + nama rombel + tahun ajaran' }[id] || 'kunci data';
   const aliasOf = t => ((ALIAS_ENT[id] || {})[t.k] || ALIAS[t.k] || []).map(NORM).concat([NORM(t.l)]);
   const st = { wb: null, sheet: '', grid: [], hdr: 0, map: {}, dirty: false };
 
@@ -545,6 +658,7 @@ async function openImport() {
     $('#iopt', m).innerHTML = `<div class="fg" style="margin:12px 0">
       ${sheets.length > 1 ? `<div><label>Lembar (sheet)</label><select id="ish">${sheets.map(s => `<option${s === st.sheet ? ' selected' : ''}>${esc(s)}</option>`).join('')}</select></div>` : ''}
       <div><label>Baris judul kolom (terdeteksi otomatis)</label><input id="ihd" type="number" min="1" value="${st.hdr + 1}"></div>
+      ${id === 'rombel' ? `<div class="full"><label>Tahun ajaran untuk semua baris (diisi bila file tidak memuat kolom Tahun Ajaran)</label><input id="ita" value="${taNow()}" placeholder="2026/2027"></div>` : ''}
       ${refF ? `<div class="full"><label>Sekolah untuk semua baris (isi bila file tidak memuat kolom NPSN)</label><select id="idef"><option value="">— tidak ada —</option>${S.refs.map(s => `<option value="${esc(s.npsn)}">${esc(s.nama)} (${esc(s.jenjang)}) · ${esc(s.npsn)}</option>`).join('')}</select></div>` : ''}
       <div class="full"><label style="font-weight:400"><input type="checkbox" id="ise" checked style="width:auto"> Kolom yang kosong di file tidak menimpa data yang sudah ada (disarankan)</label></div></div>
       <h3>Pemetaan kolom</h3><div id="imap"></div><h3 style="margin-top:14px">Pratinjau</h3><div id="iprev"></div>`;
@@ -573,14 +687,15 @@ async function openImport() {
   };
   $('#irun', m).onclick = async () => {
     const def = refF ? $('#idef', m).value : '';
-    const miss = targets.filter(t => t.r && st.map[t.k] < 0 && !(t.t === 'ref' && (def || st.map._sekolah_nama >= 0)));
+    const ta = id === 'rombel' ? $('#ita', m).value.trim() : '';
+    const miss = targets.filter(t => t.r && st.map[t.k] < 0 && !(t.t === 'ref' && (def || st.map._sekolah_nama >= 0)) && !(t.k === 'tahun_ajaran' && ta));
     if (miss.length) return toast('Kolom wajib belum dipetakan: ' + miss.map(t => t.l.replace(/ \(.*/, '')).join(', '), 'er');
     const rows = dataRows(), tot = { baru: 0, upd: 0, sama: 0, gagal: 0 }, errs = [];
     $('#irun', m).disabled = true; $('#ifile', m).disabled = true;
     try {
       for (let i = 0; i < rows.length; i += 200) {
         $('#ires', m).innerHTML = `<div class="msg ok">Mengimpor… ${Math.min(i + 200, rows.length)} / ${rows.length} baris. Jangan tutup halaman ini.</div>`;
-        const r = await api('importData', { entity: id, rows: rows.slice(i, i + 200), skipEmpty: $('#ise', m).checked, defaultNpsn: def });
+        const r = await api('importData', { entity: id, rows: rows.slice(i, i + 200), skipEmpty: $('#ise', m).checked, defaultNpsn: def, defaultTahun: ta });
         st.dirty = true;
         tot.baru += r.baru; tot.upd += r.upd; tot.sama += r.sama; tot.gagal += r.gagal;
         r.errors.forEach(x => errs.push(x));
