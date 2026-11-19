@@ -465,7 +465,7 @@ function applyTheme(theme) {
 const fnum = n => String(Math.round((Number(n) || 0) * 10) / 10).replace('.', ',');
 const taNow = () => { const d = new Date(), y = d.getFullYear(), a = d.getMonth() >= 6 ? y : y - 1; return a + '/' + (a + 1); };
 const K = { jenjang: 'SD', tahun: '', hitung: 'asn', q: '', st: '', d: null };
-const HITUNG = { semua: 'Semua guru terdata', asn: 'PNS + PPPK (tanpa paruh waktu)' };
+const HITUNG = { asn: 'Hanya PNS, PPPK, dan PPPK Paruh Waktu' };
 const STFLT = { '': 'Semua status', kurang: 'Ada kekurangan guru', lebih: 'Ada kelebihan guru', sesuai: 'Sudah sesuai', kosong: 'Rombel belum diisi' };
 const stOk = (r, f) => !f || (f === 'kurang' && r.kurang > 0) || (f === 'lebih' && r.lebih > 0) || (f === 'sesuai' && r.status === 'Sesuai') || (f === 'kosong' && !r.ada_rombel);
 const stBadge = s => `<span class="badge ${{ 'Sesuai': 'ok', 'Kurang': 'er', 'Kurang & Lebih': 'er', 'Lebih': 'wr' }[s] || ''}">${esc(s)}</span>`;
@@ -509,7 +509,7 @@ function drawK() {
   $('#view').innerHTML = `
   <div class="card"><div class="tools">${tabs}
     <select id="kth">${d.tahunList.map(x => `<option${x === d.tahun ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>
-    <select id="khit">${Object.keys(HITUNG).map(k => `<option value="${k}"${k === K.hitung ? ' selected' : ''}>${HITUNG[k]}</option>`).join('')}</select>
+    <select id="khit" disabled style="opacity:.6">${Object.keys(HITUNG).map(k => `<option value="${k}" selected>${HITUNG[k]}</option>`).join('')}</select>
     <div class="sp"></div>
     <button class="btn sec" id="kp1">Cetak Rekap</button><button class="btn sec" id="kp2">Cetak + Rincian Sekolah</button><button class="btn sec" id="kcsv">Ekspor CSV</button></div>
     <p class="mu" style="margin:10px 0 0">${esc(ktitle())} · Hanya sekolah negeri · Hanya guru status PNS, PPPK, dan PPPK Paruh Waktu</p></div>
@@ -585,7 +585,7 @@ function kDetail(r, print) {
 function openKDetail(npsn) {
   const r = K.d.rows.find(x => x.npsn === npsn); if (!r) return;
   const m = modal(r.nama, `<p class="mu" style="margin-top:0">NPSN ${esc(r.npsn)} · ${esc(r.kecamatan)} · TA ${esc(K.d.tahun)}</p>${kDetail(r, false)}<div style="margin-top:12px"><button type="button" class="btn sec" id="kdp">Cetak rincian sekolah ini</button></div>`, async () => {}, { ok: 'Tutup' });
-  $('#kdp', m).onclick = () => printDoc('Rincian Kebutuhan Guru — ' + r.nama, `<h1>RINCIAN KEBUTUHAN GURU</h1><div class="sub">${esc(r.nama)} · NPSN ${esc(r.npsn)} · ${esc(r.kecamatan)}<br>Tahun Ajaran ${esc(K.d.tahun)} · Guru dihitung: ${esc(HITUNG[K.hitung])}</div>${kDetail(r, true)}${kSign()}`, false);
+  $('#kdp', m).onclick = () => printDoc('Rincian Kebutuhan Guru — ' + r.nama, `<h1>RINCIAN KEBUTUHAN GURU</h1><div class="sub">${esc(r.nama)} · NPSN ${esc(r.npsn)} · ${esc(r.kecamatan)}<br>Tahun Ajaran ${esc(K.d.tahun)} · Hanya PNS/PPPK/PPPK Paruh Waktu</div>${kDetail(r, true)}${kSign()}`, false);
 }
 
 /* ---------- cetak & ekspor ---------- */
@@ -609,7 +609,7 @@ th{background:#e9edf3}thead{display:table-header-group}tr{page-break-inside:avoi
 const kSign = () => `<div class="ttd">............................., ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br>Mengetahui,<br>Kepala Dinas Pendidikan<br><br><br><br>(................................)</div>`;
 function printK(detail) {
   const d = K.d, t = d.total, list = kList();
-  let b = `<h1>ANALISIS KEBUTUHAN GURU ${esc(K.jenjang)}</h1><div class="sub">Tahun Ajaran ${esc(d.tahun)} · Guru yang dihitung: ${esc(HITUNG[K.hitung])}${K.st || K.q ? '<br>Daftar dibatasi sesuai filter: ' + esc(STFLT[K.st]) + (K.q ? ' · “' + esc(K.q) + '”' : '') : ''}</div>
+  let b = `<h1>ANALISIS KEBUTUHAN GURU ${esc(K.jenjang)}</h1><div class="sub">Tahun Ajaran ${esc(d.tahun)} · Hanya guru status PNS, PPPK, dan PPPK Paruh Waktu${K.st || K.q ? '<br>Daftar dibatasi sesuai filter: ' + esc(STFLT[K.st]) + (K.q ? ' · “' + esc(K.q) + '”' : '') : ''}</div>
   <div class="box"><div><b>${t.sekolah_rombel}/${t.sekolah}</b>Sekolah (ada rombel)</div><div><b>${t.rombel}</b>Rombel</div><div><b>${fnum(t.butuh)}</b>Dibutuhkan</div><div><b>${fnum(t.ada)}</b>Tersedia</div><div><b class="k">${fnum(t.kurang)}</b>Kekurangan</div><div><b class="l">${fnum(t.lebih)}</b>Kelebihan</div></div>
   <h2>Rekap per jenis guru</h2><table><thead><tr><th>Jenis guru</th><th>Cara menghitung (per sekolah)</th><th>Dibutuhkan</th><th>Ada</th><th>Kurang</th><th>Lebih</th></tr></thead><tbody>${d.kategori.map(c => `<tr><td>${esc(c.n)}</td><td>${esc(c.rumus)}</td><td>${fnum(c.butuh)}</td><td>${fnum(c.ada)}</td><td>${c.kurang > 0 ? `<span class="k">${fnum(c.kurang)}</span>` : 0}</td><td>${c.lebih > 0 ? `<span class="l">${fnum(c.lebih)}</span>` : 0}</td></tr>`).join('')}</tbody></table>
   <p class="note">Beban 1 guru = ${d.standar.beban} jam tatap muka/minggu. Hasil hitung dibulatkan ke angka terdekat (minimal 1). Selisih dihitung per jenis guru. Dasar: Juknis Peraturan Bersama 5 Menteri (2011).</p>
