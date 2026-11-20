@@ -381,22 +381,28 @@ async function pageDash() {
 
   if (st.menunggu) h += `<a class="stat wr" href="#/pendaftaran" style="margin-bottom:16px;display:block"><b>${st.menunggu}</b>Pendaftaran sekolah menunggu verifikasi</a>`;
 
-  // Layout mirip Satu Data: 2 kolom
-  h += `<div style="display:grid;grid-template-columns:1.1fr 1fr;gap:16px;margin-bottom:20px">
-    <div>
-      <div class="dash-kpis" style="grid-template-columns:1fr 1fr;gap:12px">
-        <div class="kpi-card"><div class="kpi-icon" style="background:#dbeafe;color:#1d4ed8">🏫</div><div><b>${(st.counts.sekolah||0).toLocaleString('id')}</b><small>Sekolah</small></div></div>
-        <div class="kpi-card"><div class="kpi-icon" style="background:#dbeafe;color:#1d4ed8">👨‍🎓</div><div><b>${(st.total_siswa||0).toLocaleString('id')}</b><small>Peserta Didik</small></div></div>
-        <div class="kpi-card"><div class="kpi-icon" style="background:#dbeafe;color:#1d4ed8">👨‍🏫</div><div><b>${(st.counts.guru||0).toLocaleString('id')}</b><small>Guru</small></div></div>
-        <div class="kpi-card"><div class="kpi-icon" style="background:#dbeafe;color:#1d4ed8">💼</div><div><b>${(st.counts.pegawai||0).toLocaleString('id')}</b><small>Tendik</small></div></div>
-      </div>
+  // Layout rekap yang lebih keren dan responsif
+  h += `<div class="dash-kpis" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px">
+    <div class="kpi-card" style="background:linear-gradient(135deg,#1a56db,#3b82f6);color:#fff"><div class="kpi-icon" style="background:rgba(255,255,255,.2)">🏫</div><div><b>${(st.counts.sekolah||0).toLocaleString('id')}</b><small>Total Sekolah</small></div></div>
+    <div class="kpi-card" style="background:linear-gradient(135deg,#059669,#10b981);color:#fff"><div class="kpi-icon" style="background:rgba(255,255,255,.2)">👨‍🏫</div><div><b>${(st.counts.guru||0).toLocaleString('id')}</b><small>Total Guru</small></div></div>
+    <div class="kpi-card" style="background:linear-gradient(135deg,#d97706,#f59e0b);color:#fff"><div class="kpi-icon" style="background:rgba(255,255,255,.2)">👨‍💼</div><div><b>${(st.counts.kepsek||0).toLocaleString('id')}</b><small>Kepala Sekolah</small></div></div>
+    <div class="kpi-card" style="background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff"><div class="kpi-icon" style="background:rgba(255,255,255,.2)">📚</div><div><b>${(st.counts.rombel||0).toLocaleString('id')}</b><small>Rombel</small></div></div>
+  </div>`;
+
+  h += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+    <div class="card" style="margin:0">
+      <h3 style="margin-top:0">Rekap per Jenjang</h3>
+      <div class="tw"><table><thead><tr style="background:#0ea5e9;color:#fff"><th>Jenjang</th><th>Sekolah</th><th>Guru</th></tr></thead><tbody>
+        <tr><td>TK / PAUD</td><td>${st.jenjang?.TK||'-'}</td><td>-</td></tr>
+        <tr><td>SD</td><td>${st.jenjang?.SD||'-'}</td><td>-</td></tr>
+        <tr><td>SMP</td><td>${st.jenjang?.SMP||'-'}</td><td>-</td></tr>
+      </tbody></table></div>
     </div>
     <div class="card" style="margin:0">
-      <div class="tw"><table><thead><tr style="background:#0ea5e9;color:#fff"><th>#</th><th>Sekolah</th><th>Peserta Didik</th><th>Guru</th><th>Tendik</th><th>Aksi</th></tr></thead><tbody>
-        <tr><td>1</td><td>PAUD / TK</td><td>${st.jenjang?.TK||'-'}</td><td>-</td><td>-</td><td><a class="btn sm sec" href="#/sekolah">Detail</a></td></tr>
-        <tr><td>2</td><td>SD</td><td>${st.jenjang?.SD||'-'}</td><td>-</td><td>-</td><td><a class="btn sm sec" href="#/sekolah">Detail</a></td></tr>
-        <tr><td>3</td><td>SMP</td><td>${st.jenjang?.SMP||'-'}</td><td>-</td><td>-</td><td><a class="btn sm sec" href="#/sekolah">Detail</a></td></tr>
-        <tr style="font-weight:700;background:#f1f5f9"><td></td><td>TOTAL</td><td>${(st.counts.sekolah||0).toLocaleString('id')}</td><td>${(st.counts.guru||0).toLocaleString('id')}</td><td>${(st.counts.pegawai||0).toLocaleString('id')}</td><td></td></tr>
+      <h3 style="margin-top:0">Status Sekolah</h3>
+      <div class="tw"><table><thead><tr style="background:#10b981;color:#fff"><th>Status</th><th>Jumlah</th></tr></thead><tbody>
+        <tr><td>Negeri</td><td><b>${(st.negeri||0).toLocaleString('id')}</b></td></tr>
+        <tr><td>Swasta</td><td><b>${(st.swasta||0).toLocaleString('id')}</b></td></tr>
       </tbody></table></div>
     </div>
   </div>`;
@@ -639,11 +645,18 @@ async function pageEntity(id) {
   const rows = (await api('list', { entity: id })).rows.reverse();
   V = { id, ent, rows, q: '', flt: {}, page: 1, reload: async () => { V.rows = (await api('list', { entity: id })).rows.reverse(); drawTable(); } };
   const flts = ent.fields.filter(f => f.flt && f.t === 'select');
+  // Tambah filter status negeri/swasta untuk sekolah, guru, kepsek, rombel
+  let extraFlt = '';
+  if (['sekolah','guru','kepsek','rombel'].includes(id)) {
+    extraFlt = `<select id="fstatus"><option value="">Semua Status</option><option value="Negeri">Negeri</option><option value="Swasta">Swasta</option></select>`;
+  }
   $('#view').innerHTML = `<div id="extra"></div><div class="card"><div class="tools"><input id="q" type="search" placeholder="Cari…">
     ${flts.map(f => `<select data-f="${f.k}"><option value="">Semua ${esc(f.l)}</option>${f.o.map(o => `<option>${esc(o)}</option>`).join('')}</select>`).join('')}
+    ${extraFlt}
     <div class="sp"></div>${ent.imp ? '<button class="btn sec" id="imp">Impor Excel</button>' : ''}<button class="btn sec" id="exp">Ekspor CSV</button>${ent.ops.includes('create') ? '<button class="btn" id="add">+ Tambah</button>' : ''}</div><div id="tbl"></div></div>`;
   $('#q').oninput = e => { V.q = e.target.value; V.page = 1; drawTable(); };
   $$('[data-f]').forEach(s => s.onchange = () => { V.flt[s.dataset.f] = s.value; V.page = 1; drawTable(); });
+  if ($('#fstatus')) $('#fstatus').onchange = () => { V.flt._status = $('#fstatus').value; V.page = 1; drawTable(); };
   $('#exp').onclick = exportCSV;
   if ($('#imp')) $('#imp').onclick = openImport;
   if ($('#add')) $('#add').onclick = () => openForm(null);
@@ -652,8 +665,17 @@ async function pageEntity(id) {
 }
 function filtered() {
   const q = V.q.toLowerCase();
+  const statusFlt = V.flt._status;
   return V.rows.filter(r => {
-    for (const k in V.flt) if (V.flt[k] && r[k] !== V.flt[k]) return false;
+    for (const k in V.flt) if (k !== '_status' && V.flt[k] && r[k] !== V.flt[k]) return false;
+    if (statusFlt) {
+      let st = r.status_sekolah || '';
+      if (!st && r.npsn) {
+        const sek = S.refs.find(s => s.npsn === r.npsn || s.npsn === r.npsn_sekolah);
+        st = sek ? sek.status_sekolah || '' : '';
+      }
+      if (!String(st).toLowerCase().includes(statusFlt.toLowerCase())) return false;
+    }
     if (!q) return true;
     return V.ent.fields.some(f => !f.v && String(f.t === 'ref' ? refName(r[f.k]) : (r[f.k] || '')).toLowerCase().includes(q));
   });
