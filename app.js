@@ -889,7 +889,13 @@ async function onTblClick(e) {
 }
 
 function openView(rec) {
-  modal('Detail', `<dl>${V.ent.fields.filter(f => !f.v && !f.calc || f.calc).map(f => `<dt>${esc(f.l)}</dt><dd>${cell(f, rec[f.k])}</dd>`).join('')}</dl>`, async () => {}, { ok: 'Tutup', cancel: 'Batal' });
+  const body = V.ent.fields.filter(f => !f.v && !f.calc || f.calc).map(f => {
+    if (f.k === 'foto' && rec[f.k]) {
+      return `<dt>${esc(f.l)}</dt><dd><img src="${esc(rec[f.k])}" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid #e0e7ff" alt="Foto"></dd>`;
+    }
+    return `<dt>${esc(f.l)}</dt><dd>${cell(f, rec[f.k])}</dd>`;
+  }).join('');
+  modal('Detail', `<dl>${body}</dl>`, async () => {}, { ok: 'Tutup', cancel: 'Batal' });
 }
 function openForm(rec) {
   const ent = V.ent, isNew = !rec, r = rec || {}, sek = S.user.role === 'sekolah';
