@@ -85,20 +85,26 @@ Catatan:
 4. "Guru ada" diambil dari Data Guru, dikelompokkan dari isian **Mata Pelajaran**.
 5. Setelah memperbarui `Code.gs`: jalankan `setup()` (membuat sheet **Rombel**), lalu **Deploy > Manage deployments > Edit > New version**. Sheet lama `KebutuhanGuru` tidak lagi dipakai (boleh dihapus).
 
-## Lupa password (OTP WhatsApp)
+## Lupa password (OTP Email)
 
-Di halaman login ada tautan **Lupa password?**. Pengguna memasukkan username, kode OTP 6 digit dikirim ke nomor WhatsApp yang tersimpan pada akunnya (berlaku 5 menit, maksimal 5 kali salah, maksimal 3 permintaan per 15 menit).
+Di halaman login ada tautan **Lupa password?**. Pengguna memasukkan username, kode OTP 6 digit dikirim ke **email** yang tersimpan pada akunnya (berlaku 5 menit, maksimal 5 kali salah, maksimal 3 permintaan per 15 menit).
 
-WhatsApp tidak bisa dikirim langsung dari Apps Script, jadi dibutuhkan **gateway WhatsApp** (bawaan kode memakai [Fonnte](https://docs.fonnte.com/?p=21); berbayar/ada kuota). Penyiapan:
+Email dikirim langsung dari Google Apps Script menggunakan `MailApp.sendEmail()` (gratis, memakai kuota Gmail akun yang menjalankan script).
 
-1. Daftar di penyedia gateway, hubungkan nomor WhatsApp pengirim (disarankan nomor khusus instansi, bukan pribadi), lalu salin **token**-nya.
-2. Di Apps Script: **Project Settings → Script properties → Add** → nama `WA_TOKEN`, nilai = token tersebut. (Token tidak ditulis di kode.)
-3. Isi `TEST_NOMOR_WA` di `Code.gs` dengan nomor Anda, pilih fungsi `tesWA` → **Run** (izinkan akses ke layanan eksternal). Pesan tes harus masuk ke WhatsApp.
-4. Jalankan `setup()` sekali lagi agar kolom `no_wa` ditambahkan ke sheet **Users**.
-5. **Deploy → Manage deployments → Edit → New version**.
-6. Isi nomor WA tiap akun: pengguna sendiri lewat tombol **No. WA**, atau super admin lewat menu **Pengguna → Ubah**. Akun sekolah yang disetujui dari pendaftaran otomatis memakai No. HP yang diisi saat mendaftar.
+**Yang perlu diubah di `Code.gs`:**
+1. Pastikan sheet **Users** punya kolom `email`.
+2. Pada fungsi `requestOtp` (atau sejenisnya), ganti pengiriman WhatsApp dengan:
+   ```javascript
+   MailApp.sendEmail({
+     to: emailUser,
+     subject: "Kode OTP Reset Password DIKO",
+     body: "Kode OTP Anda: " + otp + "\nBerlaku 5 menit.\nJangan berikan kode ini kepada siapapun."
+   });
+   ```
+3. Hapus ketergantungan `WA_TOKEN`, `sendWA_`, dan fungsi terkait WhatsApp.
+4. Setelah edit `Code.gs` → **Deploy → Manage deployments → Edit → New version**.
 
-Jika memakai gateway lain, ubah `WA_GATEWAY_URL` dan fungsi `sendWA_` di `Code.gs`.
+Email akun diambil dari data pendaftaran (sekolah/guru) atau data pengguna. Pastikan email terisi dengan benar.
 
 ## Catatan keamanan
 - Data mediasi perceraian dan pembinaan disiplin bersifat **sensitif**. Jangan membagikan Google Sheet-nya ke orang lain; akses data hanya lewat aplikasi. Sheet berisi hash password, jadi tetap simpan privat.
