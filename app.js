@@ -20,7 +20,12 @@ const MENU = [
   { id: 'mutasi', t: 'Mutasi', ico: '🔄' },
   { id: 'mediasi', t: 'Mediasi Perceraian', ico: '⚖️' },
   { id: 'disiplin', t: 'Pembinaan Disiplin', ico: '📝' },
-  { g: 'Promosi', items: [{ id: 'usul_plt', t: 'Usul Plt Kepsek', ico: '⭐' }, { id: 'usul_definitif', t: 'Usul Kepsek Definitif', ico: '🏆' }] },
+  { g: 'Input SK', items: [
+    { id: 'sk_pemberhentian', t: 'SK Pemberhentian', ico: '📄' },
+    { id: 'sk_mutasi', t: 'SK Mutasi', ico: '🔄' },
+    { id: 'sk_definitif', t: 'SK Kepala Sekolah Definitif', ico: '🏆' },
+    { id: 'sk_plt', t: 'SK Plt Kepala Sekolah', ico: '⭐' }
+  ] },
   { g: 'Administrasi', items: [{ id: 'pendaftaran', t: 'Pendaftaran Sekolah', ico: '📄' }, { id: 'users', t: 'Pengguna', ico: '👤' }] }
 ];
 const REG = [
@@ -311,7 +316,14 @@ async function route() {
   $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.id === id));
   document.body.classList.remove('nav-open');
   if (MAP) { MAP.remove(); MAP = null; }
-  try { id === 'dashboard' ? await pageDash() : id === 'portal_guru' ? await pagePortalGuru() : id === 'lokasi' ? await pageLokasi() : id === 'kebutuhan' ? await pageKebutuhan() : await pageEntity(id); }
+  try { 
+    if (id === 'dashboard') await pageDash();
+    else if (id === 'portal_guru') await pagePortalGuru();
+    else if (id === 'lokasi') await pageLokasi();
+    else if (id === 'kebutuhan') await pageKebutuhan();
+    else if (id.startsWith('sk_')) await pageSK(id);
+    else await pageEntity(id);
+  }
   catch (e) { $('#view').innerHTML = `<div class="card err">${esc(e.message)}</div>`; }
 }
 window.addEventListener('hashchange', route);
@@ -711,6 +723,32 @@ function exportK() {
 }
 
 /* ---------- halaman data generik ---------- */
+async function pageSK(id) {
+  const titles = {
+    sk_pemberhentian: 'SK Pemberhentian',
+    sk_mutasi: 'SK Mutasi',
+    sk_definitif: 'SK Kepala Sekolah Definitif',
+    sk_plt: 'SK Plt Kepala Sekolah'
+  };
+  $('#ttl').textContent = titles[id] || 'SK';
+  $('#view').innerHTML = '<div class="card mu">Memuat data guru…</div>';
+  const rows = (await api('list', { entity: 'guru' })).rows;
+  const html = rows.length ? `<div class="card"><div class="tw"><table><thead><tr>
+    <th>#</th><th>Nama</th><th>NIP</th><th>Sekolah</th><th>Jabatan</th><th>Status Sinkron Dapodik</th><th></th>
+  </tr></thead><tbody>
+  ${rows.map((r, i) => `<tr>
+    <td>${i+1}</td>
+    <td>${esc(r.nama)}</td>
+    <td>${esc(r.nip||'–')}</td>
+    <td>${esc(refName(r.npsn_sekolah))}</td>
+    <td>${esc(r.jabatan_ptk||'–')}</td>
+    <td>${r.sinkron_dapodik === 'Ya' ? '<span class="badge ok">Sinkron</span>' : '<span class="badge wr">Belum Sinkron</span>'}</td>
+    <td class="act"><button class="btn sm sec" onclick="toast('Fitur input SK akan ditambahkan')">Input SK</button></td>
+  </tr>`).join('')}
+  </tbody></table></div></div>` : '<div class="empty">Belum ada data guru.</div>';
+  $('#view').innerHTML = html;
+}
+
 async function pageEntity(id) {
   const ent = S.schema[id]; $('#ttl').textContent = ent.title;
   $('#view').innerHTML = '<div class="card mu">Memuat…</div>';
