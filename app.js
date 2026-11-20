@@ -11,6 +11,7 @@ const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&a
 const ROLE = { superadmin: 'Super Admin', pengguna: 'Pengguna', sekolah: 'Sekolah', guru: 'Guru' };
 const COL = { TK: '#f79009', SD: '#1b5fc4', SMP: '#12805c' };
 const MENU = [
+  { id: 'dashboard', t: 'Dashboard', ico: '📊' },
   { id: 'portal_guru', t: 'Portal Guru', ico: '📱' },
   { id: 'pegawai', t: 'Pegawai Disdik', ico: '👥' },
   { g: 'Satuan Pendidikan', items: [
@@ -650,6 +651,9 @@ async function pageEntity(id) {
   if (['sekolah','guru','kepsek','rombel'].includes(id)) {
     extraFlt = `<select id="fstatus"><option value="">Semua Status</option><option value="Negeri">Negeri</option><option value="Swasta">Swasta</option></select>`;
   }
+  if (id === 'pegawai') {
+    extraFlt = `<select id="fstatus"><option value="">Semua Status</option><option value="PNS">PNS</option><option value="PPPK">PPPK</option><option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option></select>`;
+  }
   $('#view').innerHTML = `<div id="extra"></div><div class="card"><div class="tools"><input id="q" type="search" placeholder="Cari…">
     ${flts.map(f => `<select data-f="${f.k}"><option value="">Semua ${esc(f.l)}</option>${f.o.map(o => `<option>${esc(o)}</option>`).join('')}</select>`).join('')}
     ${extraFlt}
@@ -669,12 +673,16 @@ function filtered() {
   return V.rows.filter(r => {
     for (const k in V.flt) if (k !== '_status' && V.flt[k] && r[k] !== V.flt[k]) return false;
     if (statusFlt) {
-      let st = r.status_sekolah || '';
-      if (!st && r.npsn) {
-        const sek = S.refs.find(s => s.npsn === r.npsn || s.npsn === r.npsn_sekolah);
-        st = sek ? sek.status_sekolah || '' : '';
+      if (V.id === 'pegawai') {
+        if (!String(r.status || '').toLowerCase().includes(statusFlt.toLowerCase())) return false;
+      } else {
+        let st = r.status_sekolah || '';
+        if (!st && r.npsn) {
+          const sek = S.refs.find(s => s.npsn === r.npsn || s.npsn === r.npsn_sekolah);
+          st = sek ? sek.status_sekolah || '' : '';
+        }
+        if (!String(st).toLowerCase().includes(statusFlt.toLowerCase())) return false;
       }
-      if (!String(st).toLowerCase().includes(statusFlt.toLowerCase())) return false;
     }
     if (!q) return true;
     return V.ent.fields.some(f => !f.v && String(f.t === 'ref' ? refName(r[f.k]) : (r[f.k] || '')).toLowerCase().includes(q));
