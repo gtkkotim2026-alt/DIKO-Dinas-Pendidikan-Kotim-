@@ -238,7 +238,7 @@ function authGuru() {
 }
 
 function authForgot(un) {
-  $('#ab').innerHTML = `<form id="ff"><p class="mu">Masukkan username Anda (untuk sekolah: NPSN). Kode OTP akan dikirim lewat WhatsApp ke nomor yang terdaftar pada akun.</p>
+  $('#ab').innerHTML = `<form id="ff"><p class="mu">Masukkan username Anda (untuk sekolah: NPSN). Kode OTP akan dikirim ke email yang terdaftar pada akun.</p>
     <div><label for="fu">Username</label><input id="fu" value="${esc(un || '')}" autocomplete="username" required></div>
     <div id="fe" class="msg" hidden></div><p><button class="btn" style="width:100%">Kirim Kode OTP</button></p>
     <p style="text-align:center"><a href="#" id="fb">Kembali ke login</a></p></form>`;
@@ -290,12 +290,11 @@ function init(r) {
   </div><nav id="nav"></nav></aside>
     <div class="main"><header><button class="btn sec sm" id="burger" aria-label="Menu">☰</button><h1 id="ttl"></h1><div class="sp"></div>
     <span class="who"><img src="${S.user.foto || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(S.user.nama) + '&background=1a56db&color=fff&size=32'}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;vertical-align:middle" alt="">${esc(S.user.nama)} <span class="badge">${ROLE[S.user.role]}</span></span>
-    <button class="btn sec sm" id="wa">No. WA</button><button class="btn sec sm" id="pw">Ubah Password</button><button class="btn sec sm" id="out">Keluar</button></header><main id="view"></main></div></div><div id="scrim"></div>`;
+    <button class="btn sec sm" id="pw">Ubah Password</button><button class="btn sec sm" id="out">Keluar</button></header><main id="view"></main></div></div><div id="scrim"></div>`;
   $('#burger').onclick = () => document.body.classList.toggle('nav-open');
   $('#scrim').onclick = () => document.body.classList.remove('nav-open');
   $('#out').onclick = () => doLogout(false);
   $('#pw').onclick = openPw;
-  $('#wa').onclick = openWa;
   const isGuru = S.user.role === 'guru';
   const allowed = id => {
     if (isGuru) return id === 'portal_guru' || id === 'mutasi' || id === 'mediasi';
@@ -337,16 +336,6 @@ function openPw() {
     await api('changePassword', { oldPassword: $('#p0').value, newPassword: $('#p1').value }); toast('Password diperbarui', 'ok');
   });
   bindShow(m);
-}
-
-function openWa() {
-  modal('Nomor WhatsApp', `<p class="mu">Nomor ini dipakai menerima kode OTP saat lupa password. ${S.user.wa_mask ? 'Nomor saat ini: <b>' + esc(S.user.wa_mask) + '</b>.' : 'Belum ada nomor terdaftar.'}</p>
-    <div class="fg"><div><label for="w1">Nomor WhatsApp baru</label><input id="w1" type="tel" placeholder="0812xxxxxxx" required></div>
-    <div><label for="w2">Password Anda (konfirmasi)</label><input id="w2" type="password" data-pw required></div><div class="full">${SHOWPW}</div></div>`, async () => {
-    const r = await api('setWa', { noWa: $('#w1').value, password: $('#w2').value });
-    S.user.wa_mask = r.mask; toast('Nomor WhatsApp disimpan', 'ok');
-  });
-  bindShow(document.body.lastElementChild);
 }
 
 /* ---------- dashboard ---------- */
@@ -470,7 +459,7 @@ async function pageDash() {
       <div class="dash-date">${kecamatan.length} Kecamatan</div>
     </div>`;
 
-    h += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+    h += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
       <div class="card" style="margin:0">
         <h3 style="margin-top:0;color:#1a56db">Jumlah Sekolah Negeri</h3>
         <div class="tw" style="max-height:540px"><table><thead><tr><th>Kecamatan</th><th>TK</th><th>SD</th><th>SMP</th><th>Total</th></tr></thead><tbody>
@@ -494,56 +483,38 @@ async function pageDash() {
       </div>
     </div>`;
 
-    // Theme settings
-    h += `<div class="card" style="margin-top:20px;border:2px solid #1a56db">
-      <h3>Pengaturan Tampilan (Super Admin)</h3>
-      <div class="fg" style="margin-top:12px">
-        <div><label>Warna Utama</label><input type="color" id="themeColor" value="#1a56db"></div>
-        <div><label>Logo (URL gambar)</label><input id="themeLogo" placeholder="https://contoh.com/logo.png"></div>
-        <div class="full"><button class="btn" id="saveTheme">Simpan Tema</button> <button class="btn sec" id="resetTheme">Reset</button></div>
+    // Charts section
+    h += `<div style="margin-top:24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
+      <div class="card" style="margin:0">
+        <h3 style="margin-top:0;color:#1a56db">Grafik Sekolah Negeri</h3>
+        <div style="position:relative;height:280px"><canvas id="chartSekolah"></canvas></div>
+      </div>
+      <div class="card" style="margin:0">
+        <h3 style="margin-top:0;color:#059669">Grafik Guru PNS/PPPK</h3>
+        <div style="position:relative;height:280px"><canvas id="chartGuru"></canvas></div>
+      </div>
+      <div class="card" style="margin:0">
+        <h3 style="margin-top:0;color:#d97706">Grafik Peserta Didik</h3>
+        <div style="position:relative;height:280px"><canvas id="chartPD"></canvas></div>
       </div>
     </div>`;
 
     $('#view').innerHTML = h;
 
-    const saved = JSON.parse(localStorage.getItem('dikoTheme') || '{}');
-    if (saved.color && $('#themeColor')) $('#themeColor').value = saved.color;
-    if (saved.logo && $('#themeLogo')) $('#themeLogo').value = saved.logo;
-    if ($('#saveTheme')) $('#saveTheme').onclick = () => {
-      const theme = { color: $('#themeColor').value, logo: $('#themeLogo').value.trim() };
-      localStorage.setItem('dikoTheme', JSON.stringify(theme));
-      applyTheme(theme);
-      toast('Tema disimpan', 'ok');
-    };
-    if ($('#resetTheme')) $('#resetTheme').onclick = () => {
-      localStorage.removeItem('dikoTheme');
-      applyTheme({});
-      toast('Tema direset', 'ok');
-      setTimeout(() => location.reload(), 500);
-    };
+    // Load Chart.js and render
+    if (typeof Chart === 'undefined') {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+      s.onload = () => renderDashCharts(kecamatan, sekMap, guruMap, pdMap);
+      document.head.appendChild(s);
+    } else {
+      renderDashCharts(kecamatan, sekMap, guruMap, pdMap);
+    }
   } catch (e) {
     $('#view').innerHTML = `<div class="card er">Gagal memuat Dashboard: ${esc(e.message)}</div>`;
   }
 }
 
-function applyTheme(theme) {
-  const root = document.documentElement;
-  if (theme.color) {
-    root.style.setProperty('--p', theme.color);
-    // update gradients roughly
-    document.querySelectorAll('.btn:not(.sec):not(.dan)').forEach(b => b.style.background = `linear-gradient(135deg, ${theme.color}, ${theme.color})`);
-  }
-  if (theme.logo) {
-    const logo = document.querySelector('.brand-logo');
-    if (logo) logo.innerHTML = `<img src="${theme.logo}" style="width:100%;height:100%;object-fit:cover;border-radius:14px" alt="logo">`;
-  }
-}
-
-// Apply saved theme on load
-(function(){
-  const saved = JSON.parse(localStorage.getItem('dikoTheme') || '{}');
-  if (saved.color || saved.logo) applyTheme(saved);
-})();
 
 /* ---------- kebutuhan guru: dihitung otomatis dari data rombel ---------- */
 const fnum = n => String(Math.round((Number(n) || 0) * 10) / 10).replace('.', ',');
@@ -557,6 +528,49 @@ const nK = v => v > 0 ? `<b style="color:var(--er)">${fnum(v)}</b>` : '<span cla
 const nL = v => v > 0 ? `<b style="color:#b54708">${fnum(v)}</b>` : '<span class="mu">0</span>';
 const kStd = k => (K.d && K.d.standar && K.d.standar.kat) ? (K.d.standar.kat.find(x => x.k === k) || { n: k, rumus: '' }) : { n: k, rumus: '' };
 const ktitle = () => `Analisis Kebutuhan Guru ${K.jenjang} Negeri — Tahun Ajaran ${K.d.tahun}`;
+
+function renderDashCharts(kecamatan, sekMap, guruMap, pdMap) {
+  const labels = kecamatan;
+  const topN = labels.length > 12 ? labels.slice(0, 12) : labels; // batasi agar tidak terlalu padat
+
+  new Chart(document.getElementById('chartSekolah'), {
+    type: 'bar',
+    data: {
+      labels: topN,
+      datasets: [
+        { label: 'TK', data: topN.map(k => sekMap[k].TK), backgroundColor: '#f79009' },
+        { label: 'SD', data: topN.map(k => sekMap[k].SD), backgroundColor: '#1b5fc4' },
+        { label: 'SMP', data: topN.map(k => sekMap[k].SMP), backgroundColor: '#12805c' }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+  });
+
+  new Chart(document.getElementById('chartGuru'), {
+    type: 'bar',
+    data: {
+      labels: topN,
+      datasets: [
+        { label: 'PNS', data: topN.map(k => guruMap[k].PNS), backgroundColor: '#1a56db' },
+        { label: 'PPPK', data: topN.map(k => guruMap[k].PPPK), backgroundColor: '#059669' },
+        { label: 'PPPK Paruh', data: topN.map(k => guruMap[k].PPPK_Paruh), backgroundColor: '#8b5cf6' }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+  });
+
+  new Chart(document.getElementById('chartPD'), {
+    type: 'bar',
+    data: {
+      labels: topN,
+      datasets: [
+        { label: 'Laki-laki', data: topN.map(k => pdMap[k].L), backgroundColor: '#3b82f6' },
+        { label: 'Perempuan', data: topN.map(k => pdMap[k].P), backgroundColor: '#ec4899' }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+  });
+}
 
 async function pageKebutuhan() {
   $('#ttl').textContent = 'Kebutuhan Guru';
