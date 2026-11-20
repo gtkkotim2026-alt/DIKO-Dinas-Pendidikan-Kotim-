@@ -103,14 +103,24 @@ function inputHTML(f, val, req) {
 }
 function previewFoto(inp, prevId) {
   const f = inp.files[0]; if (!f) return;
-  const r = new FileReader();
-  r.onload = () => {
-    const data = r.result;
+  const img = new Image();
+  const reader = new FileReader();
+  reader.onload = e => { img.src = e.target.result; };
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    const max = 200;
+    let w = img.width, h = img.height;
+    if (w > h) { if (w > max) { h *= max / w; w = max; } }
+    else { if (h > max) { w *= max / h; h = max; } }
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    const data = canvas.toDataURL('image/jpeg', 0.7);
     $('#' + prevId).innerHTML = `<img src="${data}" style="width:60px;height:60px;border-radius:50%;object-fit:cover">`;
     const hid = inp.id.replace('_file', '');
     $('#' + hid).value = data;
   };
-  r.readAsDataURL(f);
+  reader.readAsDataURL(f);
 }
 function fieldWrap(f, val, req) {
   return `<div id="w_${f.k}" class="${f.t === 'textarea' || f.full ? 'full' : ''}"><label for="f_${f.k}">${esc(f.l)}${req ? ' <i>*</i>' : ''}</label>${inputHTML(f, val, req)}</div>`;
@@ -428,52 +438,54 @@ async function pageDash() {
       else if (st.includes('pns')) guruMap[k].PNS++;
     });
 
-    // 3. Peserta didik & Rombel (dari data rombel aktual)
-    const pdMap = {};
-    const rombelMap = {};
-    kecamatan.forEach(k => { pdMap[k] = { L:0, P:0, total:0 }; rombelMap[k] = 0; });
-    rombel.forEach(r => {
+    // Hanya sekolah negeri TK/SD/SMP
+    const negeri = sekolah.filter(s => isNegeri(s) && jenjangOk(s.jenjang));
+    const negeriNpsn = new Set(negeri.map(s => s.npsn));
+
+    // Rombel & Siswa hanya dari sekolah negeri
+    const rombelNegeri = rombel.filter(r => negeriNpsn.has(r.npsn_sekolah));
+    const guruNegeri = guru.filter(g => isASN(g) && negeriNpsn.has(g.npsn_sekolah));
+
+    // Rekap per jenjang
+    const rekap = { TK:{sekolah:0,rombel:0,siswa:0,guru:0}, SD:{sekolah:0,rombel:0,siswa:0,guru:0}, SMP:{sekolah:0,rombel:0,siswa:0,guru:0} };
+    negeri.forEach(s => { if (rekap[s.jenjang]) rekap[s.jenjang].sekolah++; });
+    rombelNegeri.forEach(r => {
       const sek = sekByNpsn[r.npsn_sekolah];
-      if (!sek || !isNegeri(sek) || !jenjangOk(sek.jenjang)) return;
-      const k = sek.kecamatan || 'Tanpa Kecamatan';
-      if (!pdMap[k]) return;
-      const jml = Number(r.jumlah_siswa) || 0;
-      pdMap[k].total += jml;
-      rombelMap[k]++;
-      // Jika ada kolom gender terpisah di masa depan, bisa diganti
-      pdMap[k].L += Math.round(jml / 2);
-      pdMap[k].P += jml - Math.round(jml / 2);
+      if (sek && rekap[sek.jenjang]) {
+        rekap[sek.jenjang].rombel++;
+        rekap[sek.jenjang].siswa += Number(r.jumlah_siswa) || 0;
+      }
+    });
+    guruNegeri.forEach(g => {
+      const sek = sekByNpsn[g.npsn_sekolah];
+      if (sek && rekap[sek.jenjang]) rekap[sek.jenjang].guru++;
     });
 
-    const sum = (map, key) => kecamatan.reduce((t, k) => t + (map[k][key] || 0), 0);
-
     let h = `<div class="dash-welcome">
-      <div><div class="eyebrow">DASHBOARD</div><h2>Rekap Data Pendidikan Negeri</h2><p>Kabupaten Kotawaringin Timur</p></div>
-      <div class="dash-date">Total Kecamatan<br><b>${kecamatan.length}</b></div>
+      <div><div class="eyebrow">DASHBOARD</div><h2>Rekap Sekolah Negeri</h2><p>Kabupaten Kotawaringin Timur — Hanya TK, SD, SMP Negeri</p></div>
     </div>`;
 
+    h += `<div class="dash-kpis" style="grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px">
+      ${['TK','SD','SMP'].map(j => `<div class="kpi-card" style="background:linear-gradient(135deg,#1a56db,#3b82f6);color:#fff">
+        <div><b>${rekap[j].sekolah}</b><small>Sekolah ${j} Negeri</small></div>
+        <div style="font-size:13px;margin-top:6px;opacity:.9">${rekap[j].rombel} rombel · ${rekap[j].siswa.toLocaleString('id')} siswa · ${rekap[j].guru} guru ASN</div>
+      </div>`).join('')}
+    </div>`;
+
+    // Tabel per kecamatan (tetap hanya negeri)
     h += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
-      <div class="card" style="margin:0">
-        <h3 style="margin-top:0;color:#1a56db">Jumlah Sekolah Negeri</h3>
-        <div class="tw" style="max-height:520px"><table><thead><tr><th>Kecamatan</th><th>TK</th><th>SD</th><th>SMP</th><th>Total</th></tr></thead><tbody>
-        ${kecamatan.map(k => `<tr><td>${esc(k)}</td><td>${sekMap[k].TK}</td><td>${sekMap[k].SD}</td><td>${sekMap[k].SMP}</td><td><b>${sekMap[k].TK+sekMap[k].SD+sekMap[k].SMP}</b></td></tr>`).join('')}
-        <tr style="font-weight:700;background:#f1f5f9"><td>TOTAL</td><td>${sum(sekMap,'TK')}</td><td>${sum(sekMap,'SD')}</td><td>${sum(sekMap,'SMP')}</td><td>${sum(sekMap,'TK')+sum(sekMap,'SD')+sum(sekMap,'SMP')}</td></tr>
-        </tbody></table></div>
-      </div>
-      <div class="card" style="margin:0">
-        <h3 style="margin-top:0;color:#059669">Jumlah Guru ASN (Negeri)</h3>
-        <div class="tw" style="max-height:520px"><table><thead><tr><th>Kecamatan</th><th>PNS</th><th>PPPK</th><th>PPPK Paruh</th><th>Total</th></tr></thead><tbody>
-        ${kecamatan.map(k => `<tr><td>${esc(k)}</td><td>${guruMap[k].PNS}</td><td>${guruMap[k].PPPK}</td><td>${guruMap[k].PPPK_Paruh}</td><td><b>${guruMap[k].PNS+guruMap[k].PPPK+guruMap[k].PPPK_Paruh}</b></td></tr>`).join('')}
-        <tr style="font-weight:700;background:#f1f5f9"><td>TOTAL</td><td>${sum(guruMap,'PNS')}</td><td>${sum(guruMap,'PPPK')}</td><td>${sum(guruMap,'PPPK_Paruh')}</td><td>${sum(guruMap,'PNS')+sum(guruMap,'PPPK')+sum(guruMap,'PPPK_Paruh')}</td></tr>
-        </tbody></table></div>
-      </div>
-      <div class="card" style="margin:0">
-        <h3 style="margin-top:0;color:#d97706">Jumlah Rombel & Peserta Didik (Negeri)</h3>
-        <div class="tw" style="max-height:520px"><table><thead><tr><th>Kecamatan</th><th>Rombel</th><th>Siswa</th></tr></thead><tbody>
+      <div class="card" style="margin:0"><h3 style="margin-top:0">Sekolah Negeri per Kecamatan</h3>
+        <div class="tw" style="max-height:480px"><table><thead><tr><th>Kecamatan</th><th>TK</th><th>SD</th><th>SMP</th></tr></thead><tbody>
+        ${kecamatan.map(k => `<tr><td>${esc(k)}</td><td>${sekMap[k].TK}</td><td>${sekMap[k].SD}</td><td>${sekMap[k].SMP}</td></tr>`).join('')}
+        </tbody></table></div></div>
+      <div class="card" style="margin:0"><h3 style="margin-top:0">Guru ASN per Kecamatan</h3>
+        <div class="tw" style="max-height:480px"><table><thead><tr><th>Kecamatan</th><th>PNS</th><th>PPPK</th><th>Paruh</th></tr></thead><tbody>
+        ${kecamatan.map(k => `<tr><td>${esc(k)}</td><td>${guruMap[k].PNS}</td><td>${guruMap[k].PPPK}</td><td>${guruMap[k].PPPK_Paruh}</td></tr>`).join('')}
+        </tbody></table></div></div>
+      <div class="card" style="margin:0"><h3 style="margin-top:0">Rombel & Siswa Negeri</h3>
+        <div class="tw" style="max-height:480px"><table><thead><tr><th>Kecamatan</th><th>Rombel</th><th>Siswa</th></tr></thead><tbody>
         ${kecamatan.map(k => `<tr><td>${esc(k)}</td><td>${rombelMap[k]}</td><td>${pdMap[k].total}</td></tr>`).join('')}
-        <tr style="font-weight:700;background:#f1f5f9"><td>TOTAL</td><td>${kecamatan.reduce((t,k)=>t+rombelMap[k],0)}</td><td>${sum(pdMap,'total')}</td></tr>
-        </tbody></table></div>
-      </div>
+        </tbody></table></div></div>
     </div>`;
 
     // Theme settings tetap
