@@ -92,11 +92,25 @@ function modal(title, body, onSubmit, opt = {}) {
 }
 function inputHTML(f, val, req) {
   const id = 'f_' + f.k, rq = req ? ' required' : '', v = val == null ? '' : val;
+  if (f.k === 'foto') {
+    return `<input id="${id}_file" type="file" accept="image/*" onchange="previewFoto(this,'prev_${id}')"><input id="${id}" type="hidden" value="${esc(v)}"><div id="prev_${id}" style="margin-top:6px">${v ? `<img src="${esc(v)}" style="width:60px;height:60px;border-radius:50%;object-fit:cover">` : ''}</div>`;
+  }
   if (f.t === 'textarea') return `<textarea id="${id}" rows="3"${rq}>${esc(v)}</textarea>`;
   if (f.t === 'select') return `<select id="${id}"${rq}><option value="">— pilih —</option>${f.o.map(o => `<option${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
   if (f.t === 'ref') return `<select id="${id}"${rq}><option value="">— pilih sekolah —</option>${S.refs.map(s => `<option value="${esc(s.npsn)}"${s.npsn === v ? ' selected' : ''}>${esc(s.nama)} (${esc(s.jenjang)}) · ${esc(s.npsn)}</option>`).join('')}</select>`;
   const type = { number: 'number', date: 'date', tel: 'tel', password: 'password' }[f.t] || 'text';
   return `<input id="${id}" type="${type}"${f.t === 'number' ? ' step="any"' : ''}${f.t === 'password' ? ' data-pw autocomplete="new-password"' : ''} value="${esc(v)}"${rq}>`;
+}
+function previewFoto(inp, prevId) {
+  const f = inp.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    const data = r.result;
+    $('#' + prevId).innerHTML = `<img src="${data}" style="width:60px;height:60px;border-radius:50%;object-fit:cover">`;
+    const hid = inp.id.replace('_file', '');
+    $('#' + hid).value = data;
+  };
+  r.readAsDataURL(f);
 }
 function fieldWrap(f, val, req) {
   return `<div id="w_${f.k}" class="${f.t === 'textarea' || f.full ? 'full' : ''}"><label for="f_${f.k}">${esc(f.l)}${req ? ' <i>*</i>' : ''}</label>${inputHTML(f, val, req)}</div>`;
@@ -414,18 +428,21 @@ async function pageDash() {
       else if (st.includes('pns')) guruMap[k].PNS++;
     });
 
-    // 3. Peserta didik (dari rombel)
+    // 3. Peserta didik & Rombel (dari data rombel aktual)
     const pdMap = {};
-    kecamatan.forEach(k => pdMap[k] = { L:0, P:0 });
+    const rombelMap = {};
+    kecamatan.forEach(k => { pdMap[k] = { L:0, P:0, total:0 }; rombelMap[k] = 0; });
     rombel.forEach(r => {
       const sek = sekByNpsn[r.npsn_sekolah];
       if (!sek || !isNegeri(sek) || !jenjangOk(sek.jenjang)) return;
       const k = sek.kecamatan || 'Tanpa Kecamatan';
       if (!pdMap[k]) return;
-      // Asumsi jumlah_siswa total; jika ada kolom L/P terpisah bisa disesuaikan
       const jml = Number(r.jumlah_siswa) || 0;
-      pdMap[k].L += Math.round(jml * 0.5); // placeholder, ganti jika ada data gender
-      pdMap[k].P += jml - Math.round(jml * 0.5);
+      pdMap[k].total += jml;
+      rombelMap[k]++;
+      // Jika ada kolom gender terpisah di masa depan, bisa diganti
+      pdMap[k].L += Math.round(jml / 2);
+      pdMap[k].P += jml - Math.round(jml / 2);
     });
 
     const sum = (map, key) => kecamatan.reduce((t, k) => t + (map[k][key] || 0), 0);
@@ -451,10 +468,10 @@ async function pageDash() {
         </tbody></table></div>
       </div>
       <div class="card" style="margin:0">
-        <h3 style="margin-top:0;color:#d97706">Jumlah Peserta Didik (Negeri)</h3>
-        <div class="tw" style="max-height:520px"><table><thead><tr><th>Kecamatan</th><th>Laki-laki</th><th>Perempuan</th><th>Total</th></tr></thead><tbody>
-        ${kecamatan.map(k => `<tr><td>${esc(k)}</td><td>${pdMap[k].L}</td><td>${pdMap[k].P}</td><td><b>${pdMap[k].L+pdMap[k].P}</b></td></tr>`).join('')}
-        <tr style="font-weight:700;background:#f1f5f9"><td>TOTAL</td><td>${sum(pdMap,'L')}</td><td>${sum(pdMap,'P')}</td><td>${sum(pdMap,'L')+sum(pdMap,'P')}</td></tr>
+        <h3 style="margin-top:0;color:#d97706">Jumlah Rombel & Peserta Didik (Negeri)</h3>
+        <div class="tw" style="max-height:520px"><table><thead><tr><th>Kecamatan</th><th>Rombel</th><th>Siswa</th></tr></thead><tbody>
+        ${kecamatan.map(k => `<tr><td>${esc(k)}</td><td>${rombelMap[k]}</td><td>${pdMap[k].total}</td></tr>`).join('')}
+        <tr style="font-weight:700;background:#f1f5f9"><td>TOTAL</td><td>${kecamatan.reduce((t,k)=>t+rombelMap[k],0)}</td><td>${sum(pdMap,'total')}</td></tr>
         </tbody></table></div>
       </div>
     </div>`;
@@ -714,10 +731,10 @@ function drawTable() {
     // Aggregate by npsn + tahun_ajaran
     const groups = {};
     list.forEach(r => {
-      const key = (r.npsn || '') + '|' + (r.tahun_ajaran || '');
+      const key = (r.npsn_sekolah || r.npsn || '') + '|' + (r.tahun_ajaran || '');
       if (!groups[key]) {
         groups[key] = {
-          npsn: r.npsn, nama: refName(r.npsn) || r.npsn, jenjang: r.jenjang, tahun: r.tahun_ajaran,
+          npsn: r.npsn_sekolah || r.npsn, nama: refName(r.npsn_sekolah || r.npsn) || r.npsn_sekolah || r.npsn, jenjang: r.jenjang, tahun: r.tahun_ajaran,
           count: 0, siswa: 0, ids: [], rows: []
         };
       }
