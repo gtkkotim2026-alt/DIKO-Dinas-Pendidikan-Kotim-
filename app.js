@@ -8,7 +8,7 @@ const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const ROLE = { superadmin: 'Super Admin', pengguna: 'Pengguna', sekolah: 'Sekolah', guru: 'Guru' };
+const ROLE = { superadmin: 'Super Admin', admin_dinas: 'Admin Dinas', pimpinan: 'Pimpinan', guru: 'Guru', sekolah: 'Sekolah' };
 const COL = { TK: '#f79009', SD: '#1b5fc4', SMP: '#12805c' };
 const MENU = [
   { id: 'dashboard', t: 'Dashboard', ico: '📊' },
@@ -26,7 +26,11 @@ const MENU = [
     { id: 'sk_definitif', t: 'SK Kepala Sekolah Definitif', ico: '🏆' },
     { id: 'sk_plt', t: 'SK Plt Kepala Sekolah', ico: '⭐' }
   ] },
-  { g: 'Administrasi', items: [{ id: 'pendaftaran', t: 'Pendaftaran Sekolah', ico: '📄' }, { id: 'users', t: 'Pengguna', ico: '👤' }] }
+  { g: 'Administrasi', items: [
+    { id: 'pendaftaran', t: 'Pendaftaran Sekolah', ico: '📄' },
+    { id: 'users', t: 'Pengguna', ico: '👤' },
+    { id: 'statistik_user', t: 'Statistik Pengguna', ico: '📈' }
+  ]}
 ];
 const REG = [
   { k: 'npsn', l: 'NPSN (8 karakter)', r: 1 }, { k: 'nama', l: 'Nama Sekolah', r: 1 },
@@ -281,13 +285,22 @@ async function doLogout(expired) {
 /* ---------- shell ---------- */
 function init(r) {
   S.user = r.user; S.schema = r.schema; S.refs = r.refs;
-  $('#root').innerHTML = `<div class="app"><aside id="side"><div class="brand">
-    <div class="brand-logo">D</div>
-    <div class="brand-text">
-      <div class="brand-name">DIKO</div>
-      <div class="brand-sub">Sistem Informasi Terintegrasi</div>
+  $('#root').innerHTML = `<div class="app"><aside id="side">
+    <div class="brand">
+      <div class="brand-logo">D</div>
+      <div class="brand-text">
+        <div class="brand-name">DIKO</div>
+        <div class="brand-sub">Sistem Informasi Terintegrasi</div>
+      </div>
     </div>
-  </div><nav id="nav"></nav></aside>
+    <div style="padding:12px 14px 16px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:10px">
+      <img src="${S.user.foto || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(S.user.nama) + '&background=6366f1&color=fff&size=48'}" style="width:42px;height:42px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.2)" alt="">
+      <div>
+        <div style="font-weight:600;font-size:13px;color:#fff">${esc(S.user.nama)}</div>
+        <div style="font-size:11px;color:#a5b4fc;display:flex;align-items:center;gap:4px"><span style="width:7px;height:7px;background:#22c55e;border-radius:50%;display:inline-block"></span> Online</div>
+      </div>
+    </div>
+    <nav id="nav"></nav></aside>
     <div class="main"><header><button class="btn sec sm" id="burger" aria-label="Menu">☰</button><h1 id="ttl"></h1><div class="sp"></div>
     <span class="who"><img src="${S.user.foto || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(S.user.nama) + '&background=1a56db&color=fff&size=32'}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;vertical-align:middle" alt="">${esc(S.user.nama)} <span class="badge">${ROLE[S.user.role]}</span></span>
     <button class="btn sec sm" id="pw">Ubah Password</button><button class="btn sec sm" id="out">Keluar</button></header><main id="view"></main></div></div><div id="scrim"></div>`;
@@ -295,11 +308,14 @@ function init(r) {
   $('#scrim').onclick = () => document.body.classList.remove('nav-open');
   $('#out').onclick = () => doLogout(false);
   $('#pw').onclick = openPw;
-  const isGuru = S.user.role === 'guru';
+  const role = S.user.role;
   const allowed = id => {
-    if (isGuru) return id === 'portal_guru' || id === 'mutasi' || id === 'mediasi';
+    if (role === 'guru') return id === 'portal_guru' || id === 'mutasi' || id === 'mediasi';
+    if (role === 'sekolah') return ['dashboard','sekolah','guru','kepsek','lokasi','rombel','kebutuhan','mutasi'].includes(id);
+    if (role === 'pimpinan') return ['dashboard','statistik_user','pegawai','sekolah','guru','kepsek','lokasi','rombel','kebutuhan','mutasi','mediasi','disiplin'].includes(id);
+    // superadmin & admin_dinas
     if (id.startsWith('sk_')) return true;
-    return id === 'dashboard' || (id === 'lokasi' ? !!S.schema.sekolah : id === 'kebutuhan' ? !!S.schema.rombel : !!S.schema[id]);
+    return id === 'dashboard' || id === 'statistik_user' || (id === 'lokasi' ? !!S.schema.sekolah : id === 'kebutuhan' ? !!S.schema.rombel : !!S.schema[id]);
   };
   const link = i => `<a href="#/${i.id}" data-id="${i.id}"><span class="nav-ico">${i.ico || '•'}</span><span class="nav-label">${esc(i.t)}</span></a>`;
   $('#nav').innerHTML = MENU.map(m => {
@@ -320,7 +336,7 @@ async function route() {
     if (id === 'dashboard') await pageDash();
     else if (id === 'portal_guru') await pagePortalGuru();
     else if (id === 'lokasi') await pageLokasi();
-    else if (id === 'kebutuhan') await pageKebutuhan();
+    else if (id === 'kebutuhan') await pageKebutuhan(); else if (id === 'statistik_user') await pageStatistikUser();
     else if (id.startsWith('sk_')) await pageSK(id);
     else await pageEntity(id);
   }
@@ -487,15 +503,15 @@ async function pageDash() {
     h += `<div style="margin-top:24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
       <div class="card" style="margin:0">
         <h3 style="margin-top:0;color:#1a56db">Grafik Sekolah Negeri</h3>
-        <div style="position:relative;height:280px"><canvas id="chartSekolah"></canvas></div>
+        <div style="position:relative;height:auto;min-height:280px"><canvas id="chartSekolah"></canvas></div>
       </div>
       <div class="card" style="margin:0">
         <h3 style="margin-top:0;color:#059669">Grafik Guru PNS/PPPK</h3>
-        <div style="position:relative;height:280px"><canvas id="chartGuru"></canvas></div>
+        <div style="position:relative;height:auto;min-height:280px"><canvas id="chartGuru"></canvas></div>
       </div>
       <div class="card" style="margin:0">
         <h3 style="margin-top:0;color:#d97706">Grafik Peserta Didik</h3>
-        <div style="position:relative;height:280px"><canvas id="chartPD"></canvas></div>
+        <div style="position:relative;height:auto;min-height:280px"><canvas id="chartPD"></canvas></div>
       </div>
     </div>`;
 
@@ -530,46 +546,106 @@ const kStd = k => (K.d && K.d.standar && K.d.standar.kat) ? (K.d.standar.kat.fin
 const ktitle = () => `Analisis Kebutuhan Guru ${K.jenjang} Negeri — Tahun Ajaran ${K.d.tahun}`;
 
 function renderDashCharts(kecamatan, sekMap, guruMap, pdMap) {
-  const labels = kecamatan;
-  const topN = labels.length > 12 ? labels.slice(0, 12) : labels; // batasi agar tidak terlalu padat
+  const labels = kecamatan; // tampilkan semua kecamatan
+  const height = Math.max(280, labels.length * 28); // tinggi dinamis
+
+  ['chartSekolah','chartGuru','chartPD'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.parentElement) el.parentElement.style.height = height + 'px';
+  });
 
   new Chart(document.getElementById('chartSekolah'), {
     type: 'bar',
     data: {
-      labels: topN,
+      labels: labels,
       datasets: [
-        { label: 'TK', data: topN.map(k => sekMap[k].TK), backgroundColor: '#f79009' },
-        { label: 'SD', data: topN.map(k => sekMap[k].SD), backgroundColor: '#1b5fc4' },
-        { label: 'SMP', data: topN.map(k => sekMap[k].SMP), backgroundColor: '#12805c' }
+        { label: 'TK', data: labels.map(k => sekMap[k].TK), backgroundColor: '#f79009' },
+        { label: 'SD', data: labels.map(k => sekMap[k].SD), backgroundColor: '#1b5fc4' },
+        { label: 'SMP', data: labels.map(k => sekMap[k].SMP), backgroundColor: '#12805c' }
       ]
     },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' } },
+      scales: { x: { stacked: true, beginAtZero: true }, y: { stacked: true } }
+    }
   });
 
   new Chart(document.getElementById('chartGuru'), {
     type: 'bar',
     data: {
-      labels: topN,
+      labels: labels,
       datasets: [
-        { label: 'PNS', data: topN.map(k => guruMap[k].PNS), backgroundColor: '#1a56db' },
-        { label: 'PPPK', data: topN.map(k => guruMap[k].PPPK), backgroundColor: '#059669' },
-        { label: 'PPPK Paruh', data: topN.map(k => guruMap[k].PPPK_Paruh), backgroundColor: '#8b5cf6' }
+        { label: 'PNS', data: labels.map(k => guruMap[k].PNS), backgroundColor: '#1a56db' },
+        { label: 'PPPK', data: labels.map(k => guruMap[k].PPPK), backgroundColor: '#059669' },
+        { label: 'PPPK Paruh', data: labels.map(k => guruMap[k].PPPK_Paruh), backgroundColor: '#8b5cf6' }
       ]
     },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' } },
+      scales: { x: { stacked: true, beginAtZero: true }, y: { stacked: true } }
+    }
   });
 
   new Chart(document.getElementById('chartPD'), {
     type: 'bar',
     data: {
-      labels: topN,
+      labels: labels,
       datasets: [
-        { label: 'Laki-laki', data: topN.map(k => pdMap[k].L), backgroundColor: '#3b82f6' },
-        { label: 'Perempuan', data: topN.map(k => pdMap[k].P), backgroundColor: '#ec4899' }
+        { label: 'Laki-laki', data: labels.map(k => pdMap[k].L), backgroundColor: '#3b82f6' },
+        { label: 'Perempuan', data: labels.map(k => pdMap[k].P), backgroundColor: '#ec4899' }
       ]
     },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' } },
+      scales: { x: { stacked: true, beginAtZero: true }, y: { stacked: true } }
+    }
   });
+}
+
+async function pageStatistikUser() {
+  $('#ttl').textContent = 'Statistik Pengguna';
+  $('#view').innerHTML = '<div class="card mu">Memuat statistik…</div>';
+  try {
+    const r = await api('userStats');
+    const online = r.online || [];
+    const daily = r.daily || [];
+    $('#view').innerHTML = `
+      <div class="dash-kpis" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+        <div class="kpi-card"><div class="kpi-icon">👤</div><div><b>${online.length}</b><small>Sedang Online</small></div></div>
+        <div class="kpi-card"><div class="kpi-icon">📊</div><div><b>${daily.reduce((a,b)=>a+b.login,0)}</b><small>Total Login 7 Hari</small></div></div>
+      </div>
+      <div class="card">
+        <h3>Pengguna Online</h3>
+        <div class="tw">${online.length ? `<table><thead><tr><th>Nama</th><th>Role</th><th>Login Terakhir</th></tr></thead><tbody>
+          ${online.map(u => `<tr><td>${esc(u.nama)}</td><td>${esc(ROLE[u.role]||u.role)}</td><td>${esc(u.last||'')}</td></tr>`).join('')}
+        </tbody></table>` : '<div class="empty">Tidak ada pengguna online saat ini.</div>'}</div>
+      </div>
+      <div class="card">
+        <h3>Grafik Login Harian (7 Hari Terakhir)</h3>
+        <div style="height:280px"><canvas id="chartLogin"></canvas></div>
+      </div>`;
+    if (typeof Chart !== 'undefined') {
+      new Chart(document.getElementById('chartLogin'), {
+        type: 'line',
+        data: {
+          labels: daily.map(d => d.date),
+          datasets: [{ label: 'Jumlah Login', data: daily.map(d => d.login), borderColor: '#1a56db', backgroundColor: 'rgba(26,86,219,.1)', fill: true, tension: .3 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      });
+    }
+  } catch (e) {
+    $('#view').innerHTML = `<div class="card er">${esc(e.message)}</div>`;
+  }
 }
 
 async function pageKebutuhan() {
@@ -739,22 +815,197 @@ async function pageSK(id) {
     sk_plt: 'SK Plt Kepala Sekolah'
   };
   $('#ttl').textContent = titles[id] || 'SK';
-  $('#view').innerHTML = '<div class="card mu">Memuat data guru…</div>';
+  $('#view').innerHTML = '<div class="card mu">Memuat data…</div>';
+
+  // Untuk sementara tampilkan daftar guru + tombol Input SK yang membuka form sesuai jenis
   const rows = (await api('list', { entity: 'guru' })).rows;
-  const html = rows.length ? `<div class="card"><div class="tw"><table><thead><tr>
-    <th>#</th><th>Nama</th><th>NIP</th><th>Sekolah</th><th>Jabatan</th><th>Status Sinkron Dapodik</th><th></th>
-  </tr></thead><tbody>
-  ${rows.map((r, i) => `<tr>
-    <td>${i+1}</td>
-    <td>${esc(r.nama)}</td>
-    <td>${esc(r.nip||'–')}</td>
-    <td>${esc(refName(r.npsn_sekolah))}</td>
-    <td>${esc(r.jabatan_ptk||'–')}</td>
-    <td>${r.sinkron_dapodik === 'Ya' ? '<span class="badge ok">Sinkron</span>' : '<span class="badge wr">Belum Sinkron</span>'}</td>
-    <td class="act"><button class="btn sm sec" onclick="toast('Fitur input SK akan ditambahkan')">Input SK</button></td>
-  </tr>`).join('')}
-  </tbody></table></div></div>` : '<div class="empty">Belum ada data guru.</div>';
+  const html = `<div class="card">
+    <div class="tools">
+      <div class="sp"></div>
+      <button class="btn" id="addSK">+ Input SK Baru</button>
+    </div>
+    <div class="tw"><table><thead><tr>
+      <th>#</th><th>Nama PTK</th><th>NIP</th><th>Sekolah</th><th>Jabatan</th><th>Status Sinkron</th><th></th>
+    </tr></thead><tbody>
+    ${rows.map((r, i) => `<tr>
+      <td>${i+1}</td>
+      <td>${esc(r.nama)}</td>
+      <td>${esc(r.nip||'–')}</td>
+      <td>${esc(refName(r.npsn_sekolah))}</td>
+      <td>${esc(r.jabatan_ptk||'–')}</td>
+      <td>${r.sinkron_dapodik === 'Ya' ? '<span class="badge ok">Sinkron</span>' : '<span class="badge wr">Belum Sinkron</span>'}</td>
+      <td class="act"><button class="btn sm" data-id="${esc(r.id)}" data-sk="${id}">Input SK</button></td>
+    </tr>`).join('')}
+    </tbody></table></div>
+  </div>`;
   $('#view').innerHTML = html;
+
+  $('#addSK').onclick = () => openSKForm(id, null);
+  $('#view').onclick = e => {
+    const b = e.target.closest('button[data-sk]');
+    if (b) openSKForm(b.dataset.sk, rows.find(r => r.id === b.dataset.id));
+  };
+}
+
+function openSKForm(jenis, guru) {
+  const titles = {
+    sk_pemberhentian: 'Input SK Pemberhentian',
+    sk_mutasi: 'Input SK Mutasi',
+    sk_definitif: 'Input SK Kepala Sekolah Definitif',
+    sk_plt: 'Input SK Plt. Kepala Sekolah'
+  };
+
+  let fields = '';
+  if (jenis === 'sk_pemberhentian') {
+    fields = `
+      <div class="fg">
+        <div class="full"><label>Nama PTK</label><select id="sk_ptk" required>${S.refs.map(s=>'').join('')}</select></div>
+        <div><label>Jenis Pemberhentian</label><select id="sk_jenis" required>
+          <option>Pemberhentian dari jabatan Kepala Sekolah</option>
+          <option>Pemberhentian dari tugas tambahan</option>
+          <option>Pemberhentian dari penugasan pada satuan pendidikan</option>
+          <option>Pemberhentian sebagai guru/tenaga kependidikan</option>
+          <option>Pemberhentian karena pensiun atau sebab lain</option>
+        </select></div>
+        <div><label>Alasan Pemberhentian</label><select id="sk_alasan" required>
+          <option>Masa penugasan berakhir</option>
+          <option>Pengangkatan pejabat/pengganti</option>
+          <option>Permohonan sendiri</option>
+          <option>Pensiun</option>
+          <option>Meninggal dunia</option>
+          <option>Penataan organisasi</option>
+          <option>Hukuman disiplin</option>
+          <option>Lainnya</option>
+        </select></div>
+        <div><label>Nomor SK</label><input id="sk_no" required></div>
+        <div><label>Tanggal SK</label><input id="sk_tgl" type="date" required></div>
+        <div><label>TMT Pemberhentian</label><input id="sk_tmt" type="date" required></div>
+        <div class="full"><label>Pejabat yang Menetapkan</label><input id="sk_pejabat" required></div>
+        <div class="full"><label>Keterangan</label><textarea id="sk_ket" rows="2"></textarea></div>
+        <div class="full"><label>Upload SK (PDF)</label><input id="sk_file" type="file" accept=".pdf" required></div>
+      </div>`;
+  } else if (jenis === 'sk_mutasi') {
+    fields = `
+      <div class="fg">
+        <div class="full"><label>Nama PTK</label><select id="sk_ptk" required></select></div>
+        <div><label>Sekolah Tujuan</label><select id="sk_tujuan" required>${S.refs.map(s => `<option value="${esc(s.npsn)}">${esc(s.nama)} (${esc(s.jenjang)})</option>`).join('')}</select></div>
+        <div><label>Jenis Mutasi</label><select id="sk_jenis" required>
+          <option>Antar sekolah dalam satu kecamatan</option>
+          <option>Antar kecamatan</option>
+          <option>Mutasi masuk</option>
+          <option>Mutasi keluar</option>
+          <option>Lainnya</option>
+        </select></div>
+        <div><label>Alasan Mutasi</label><select id="sk_alasan" required>
+          <option>Permohonan sendiri</option>
+          <option>Kebutuhan organisasi</option>
+          <option>Pemerataan guru</option>
+          <option>Penataan tenaga pendidik</option>
+          <option>Mengikuti pasangan</option>
+          <option>Lainnya</option>
+        </select></div>
+        <div><label>Nomor SK</label><input id="sk_no" required></div>
+        <div><label>Tanggal SK</label><input id="sk_tgl" type="date" required></div>
+        <div><label>TMT Mutasi</label><input id="sk_tmt" type="date" required></div>
+        <div class="full"><label>Pejabat yang Menetapkan</label><input id="sk_pejabat" required></div>
+        <div class="full"><label>Upload SK (PDF)</label><input id="sk_file" type="file" accept=".pdf" required></div>
+      </div>`;
+  } else if (jenis === 'sk_definitif') {
+    fields = `
+      <div class="fg">
+        <div class="full"><label>Nama PTK yang diangkat</label><select id="sk_ptk" required></select></div>
+        <div><label>Sekolah Penugasan</label><select id="sk_sekolah" required>${S.refs.map(s => `<option value="${esc(s.npsn)}">${esc(s.nama)}</option>`).join('')}</select></div>
+        <div><label>Jenis Keputusan</label><select id="sk_jenis" required>
+          <option>Pengangkatan Kepala Sekolah definitif</option>
+          <option>Pengangkatan kembali</option>
+          <option>Pengangkatan pada satuan pendidikan lain</option>
+        </select></div>
+        <div><label>Nomor SK</label><input id="sk_no" required></div>
+        <div><label>Tanggal SK</label><input id="sk_tgl" type="date" required></div>
+        <div><label>TMT Pengangkatan</label><input id="sk_tmt" type="date" required></div>
+        <div><label>Masa Penugasan Mulai</label><input id="sk_mulai" type="date"></div>
+        <div><label>Masa Penugasan Berakhir</label><input id="sk_akhir" type="date"></div>
+        <div class="full"><label>Pejabat yang Menetapkan</label><input id="sk_pejabat" required></div>
+        <div class="full"><label>Upload SK (PDF)</label><input id="sk_file" type="file" accept=".pdf" required></div>
+      </div>`;
+  } else if (jenis === 'sk_plt') {
+    fields = `
+      <div class="fg">
+        <div class="full"><label>Nama PTK yang ditunjuk sebagai Plt.</label><select id="sk_ptk" required></select></div>
+        <div><label>Sekolah yang Dipimpin sebagai Plt.</label><select id="sk_sekolah" required>${S.refs.map(s => `<option value="${esc(s.npsn)}">${esc(s.nama)}</option>`).join('')}</select></div>
+        <div><label>Status Kepala Sekolah Definitif</label><select id="sk_status" required>
+          <option>Jabatan kosong</option>
+          <option>Pejabat definitif sedang berhalangan</option>
+          <option>Pejabat definitif mendapat penugasan lain</option>
+          <option>Kondisi lain</option>
+        </select></div>
+        <div><label>Nomor SK</label><input id="sk_no" required></div>
+        <div><label>Tanggal SK</label><input id="sk_tgl" type="date" required></div>
+        <div><label>TMT Mulai Plt.</label><input id="sk_tmt" type="date" required></div>
+        <div><label>Tanggal Berakhir Plt.</label><input id="sk_akhir" type="date"></div>
+        <div class="full"><label>Pejabat yang Menetapkan</label><input id="sk_pejabat" required></div>
+        <div class="full"><label>Upload SK (PDF)</label><input id="sk_file" type="file" accept=".pdf" required></div>
+      </div>`;
+  }
+
+  const m = modal(titles[jenis] || 'Input SK', fields + '<p class="mu" style="margin-top:8px">File PDF maksimal 1 MB. Data disimpan sebagai Draft / Menunggu Verifikasi.</p>', async (modalEl) => {
+    const fileInput = $('#sk_file', modalEl);
+    const file = fileInput && fileInput.files[0];
+    if (!file) throw new Error('File SK wajib diunggah');
+    if (file.size > 1024 * 1024) throw new Error('Ukuran file maksimal 1 MB');
+    if (!file.name.toLowerCase().endsWith('.pdf')) throw new Error('File harus berformat PDF');
+
+    const data = {
+      jenis: jenis,
+      ptk_id: $('#sk_ptk', modalEl).value,
+      no_sk: $('#sk_no', modalEl).value,
+      tgl_sk: $('#sk_tgl', modalEl).value,
+      tmt: $('#sk_tmt', modalEl).value,
+      pejabat: $('#sk_pejabat', modalEl).value,
+      keterangan: ($('#sk_ket', modalEl) || {}).value || ''
+    };
+    // tambahkan field spesifik sesuai jenis
+    if (jenis === 'sk_pemberhentian') {
+      data.jenis_pemberhentian = $('#sk_jenis', modalEl).value;
+      data.alasan = $('#sk_alasan', modalEl).value;
+    } else if (jenis === 'sk_mutasi') {
+      data.sekolah_tujuan = $('#sk_tujuan', modalEl).value;
+      data.jenis_mutasi = $('#sk_jenis', modalEl).value;
+      data.alasan = $('#sk_alasan', modalEl).value;
+    } else if (jenis === 'sk_definitif') {
+      data.sekolah = $('#sk_sekolah', modalEl).value;
+      data.jenis_keputusan = $('#sk_jenis', modalEl).value;
+      data.mulai = ($('#sk_mulai', modalEl) || {}).value || '';
+      data.akhir = ($('#sk_akhir', modalEl) || {}).value || '';
+    } else if (jenis === 'sk_plt') {
+      data.sekolah = $('#sk_sekolah', modalEl).value;
+      data.status_definitif = $('#sk_status', modalEl).value;
+      data.akhir = ($('#sk_akhir', modalEl) || {}).value || '';
+    }
+
+    // Convert file to base64
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    data.file_name = file.name;
+    data.file_base64 = base64;
+
+    await api('saveSK', data);
+    toast('SK berhasil disimpan (Draft)', 'ok');
+  }, { ok: 'Simpan sebagai Draft' });
+
+  // Isi dropdown PTK
+  setTimeout(() => {
+    const sel = $('#sk_ptk', m);
+    if (sel) {
+      api('list', { entity: 'guru' }).then(r => {
+        sel.innerHTML = '<option value="">— pilih PTK —</option>' + r.rows.map(g => `<option value="${esc(g.id)}"${guru && g.id===guru.id?' selected':''}>${esc(g.nama)} (${esc(g.nip||'–')})</option>`).join('');
+      });
+    }
+  }, 50);
 }
 
 async function pageEntity(id) {
@@ -970,6 +1221,40 @@ function openForm(rec) {
       const a = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
       const p = [...crypto.getRandomValues(new Uint32Array(12))].map(x => a[x % a.length]).join('');
       const i = $('#f_password', m); i.type = 'text'; i.value = p; $('[data-show]', m).checked = true;
+    };
+
+    // Tambahan: tarik dari Pegawai Disdik + foto
+    const extra = `<div class="full" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bd)">
+      <label>Tarik data dari Pegawai Disdik (opsional)</label>
+      <select id="pickPegawai"><option value="">— isi manual —</option></select>
+      <div style="margin-top:8px"><label>Foto Profil (opsional)</label>
+        <input type="file" id="userFoto" accept="image/*">
+        <div id="fotoPrev" style="margin-top:6px"></div>
+      </div>
+    </div>`;
+    $('.fg', m).insertAdjacentHTML('beforeend', extra);
+
+    // Load pegawai list
+    api('list', { entity: 'pegawai' }).then(r => {
+      const sel = $('#pickPegawai', m);
+      sel.innerHTML = '<option value="">— isi manual —</option>' + r.rows.map(p => `<option value="${esc(p.id)}">${esc(p.nama)} (${esc(p.nip||'–')})</option>`).join('');
+    });
+    $('#pickPegawai', m).onchange = async e => {
+      if (!e.target.value) return;
+      const peg = (await api('list', { entity: 'pegawai' })).rows.find(x => x.id === e.target.value);
+      if (peg) {
+        if ($('#f_nama', m)) $('#f_nama', m).value = peg.nama || '';
+        if ($('#f_username', m) && isNew) $('#f_username', m).value = (peg.nip || '').replace(/\D/g,'') || '';
+      }
+    };
+    $('#userFoto', m).onchange = function() {
+      const f = this.files[0]; if (!f) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        $('#fotoPrev', m).innerHTML = `<img src="${e.target.result}" style="width:64px;height:64px;border-radius:50%;object-fit:cover">`;
+        // simpan base64 sementara (bisa dikirim ke backend jika didukung)
+      };
+      reader.readAsDataURL(f);
     };
   }
 }
