@@ -646,21 +646,11 @@ async function pageEntity(id) {
   const rows = (await api('list', { entity: id })).rows.reverse();
   V = { id, ent, rows, q: '', flt: {}, page: 1, reload: async () => { V.rows = (await api('list', { entity: id })).rows.reverse(); drawTable(); } };
   const flts = ent.fields.filter(f => f.flt && f.t === 'select');
-  // Tambah filter status negeri/swasta untuk sekolah, guru, kepsek, rombel
-  let extraFlt = '';
-  if (['sekolah','guru','kepsek','rombel'].includes(id)) {
-    extraFlt = `<select id="fstatus"><option value="">Semua Status Sekolah</option><option value="Negeri">Negeri</option><option value="Swasta">Swasta</option></select>`;
-  }
-  if (id === 'pegawai') {
-    extraFlt = `<select id="fstatus"><option value="">Semua (PNS/PPPK)</option><option value="PNS">PNS</option><option value="PPPK">PPPK</option><option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option></select>`;
-  }
   $('#view').innerHTML = `<div id="extra"></div><div class="card"><div class="tools"><input id="q" type="search" placeholder="Cari…">
     ${flts.map(f => `<select data-f="${f.k}"><option value="">Semua ${esc(f.l)}</option>${f.o.map(o => `<option>${esc(o)}</option>`).join('')}</select>`).join('')}
-    ${extraFlt}
     <div class="sp"></div>${ent.imp ? '<button class="btn sec" id="imp">Impor Excel</button>' : ''}<button class="btn sec" id="exp">Ekspor CSV</button>${ent.ops.includes('create') ? '<button class="btn" id="add">+ Tambah</button>' : ''}</div><div id="tbl"></div></div>`;
   $('#q').oninput = e => { V.q = e.target.value; V.page = 1; drawTable(); };
   $$('[data-f]').forEach(s => s.onchange = () => { V.flt[s.dataset.f] = s.value; V.page = 1; drawTable(); });
-  if ($('#fstatus')) $('#fstatus').onchange = () => { V.flt._status = $('#fstatus').value; V.page = 1; drawTable(); };
   $('#exp').onclick = exportCSV;
   if ($('#imp')) $('#imp').onclick = openImport;
   if ($('#add')) $('#add').onclick = () => openForm(null);
@@ -669,25 +659,8 @@ async function pageEntity(id) {
 }
 function filtered() {
   const q = V.q.toLowerCase();
-  const statusFlt = V.flt._status;
   return V.rows.filter(r => {
-    for (const k in V.flt) if (k !== '_status' && V.flt[k] && r[k] !== V.flt[k]) return false;
-    if (statusFlt) {
-      if (V.id === 'pegawai') {
-        const st = String(r.status || '').toLowerCase();
-        if (statusFlt && !st.includes(statusFlt.toLowerCase())) return false;
-      } else {
-        // Untuk guru/kepsek/rombel, status diambil dari sekolahnya
-        let npsn = r.npsn || r.npsn_sekolah || r.npsn_asal;
-        let st = '';
-        if (V.id === 'sekolah') st = r.status_sekolah || '';
-        else {
-          const sek = S.refs.find(s => s.npsn === npsn);
-          st = sek ? (sek.status_sekolah || '') : '';
-        }
-        if (statusFlt && !String(st).toLowerCase().includes(statusFlt.toLowerCase())) return false;
-      }
-    }
+    for (const k in V.flt) if (V.flt[k] && r[k] !== V.flt[k]) return false;
     if (!q) return true;
     return V.ent.fields.some(f => !f.v && String(f.t === 'ref' ? refName(r[f.k]) : (r[f.k] || '')).toLowerCase().includes(q));
   });
