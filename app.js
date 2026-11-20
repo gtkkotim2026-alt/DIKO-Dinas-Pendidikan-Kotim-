@@ -40,7 +40,12 @@ function toast(msg, type) {
   d.textContent = msg; if (type) d.className = type;
   $('#toast').appendChild(d); setTimeout(() => d.remove(), 3500);
 }
-function setBusy(n) { busy += n; $('#bar').style.display = busy > 0 ? 'block' : 'none'; }
+function setBusy(n) { 
+  busy += n; 
+  $('#bar').style.display = busy > 0 ? 'block' : 'none';
+  const ld = $('#loader');
+  if (ld) ld.classList.toggle('show', busy > 0);
+}
 async function api(action, payload = {}) {
   if (!CFG.API_URL || CFG.API_URL.indexOf('GANTI') >= 0) throw new Error('API_URL belum diisi di config.js');
   setBusy(1);
@@ -368,8 +373,9 @@ function cetakRekomDemo() {
 async function pageDash() {
   $('#ttl').textContent = 'Dashboard';
   $('#view').innerHTML = '<div class="card mu">Memuat…</div>';
-  const st = await api('stats');
-  const now = new Date();
+  try {
+    const st = await api('stats');
+    const now = new Date();
 
   let h = `<div class="dash-welcome">
     <div>
@@ -447,6 +453,9 @@ async function pageDash() {
     toast('Tema direset', 'ok');
     setTimeout(() => location.reload(), 500);
   };
+  } catch (e) {
+    $('#view').innerHTML = `<div class="card er">Gagal memuat Dashboard: ${esc(e.message)}</div>`;
+  }
 }
 
 function applyTheme(theme) {
@@ -625,7 +634,7 @@ function printK(detail) {
   printDoc(ktitle(), b + kSign(), true);
 }
 function exportK() {
-  const std = K.d.standar.kat, q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const std = (K.d && K.d.standar && K.d.standar.kat) ? K.d.standar.kat : [];
   const head = ['NPSN', 'Sekolah', 'Kecamatan', 'Rombel', 'Siswa', 'Dibutuhkan', 'Ada', 'Kurang', 'Lebih', 'Status'];
   std.forEach(c => head.push(c.n + ' (dibutuhkan)', c.n + ' (ada)'));
   const lines = [head.map(q).join(',')];
@@ -740,7 +749,7 @@ function drawTable() {
       <td>${esc(r.nip||'–')}</td>
       <td>${esc(r.jabatan||'–')}</td>
       <td>${cell({t:'select'}, r.status)}</td>
-      <td class="act">${waBtn(r)} ${act(r)}</td>
+      <td class="act">${waBtn(r)} <button class="btn sm sec" data-a="view" data-id="${esc(r.id)}">Detail</button> <button class="btn sm sec" data-a="edit" data-id="${esc(r.id)}">Ubah</button></td>
     </tr>`).join('')}
     </tbody></table></div>
     <div class="pager"><span>${list.length} pegawai</span><button class="btn sm sec" data-a="prev"${V.page <= 1 ? ' disabled' : ''}>‹</button><span>${V.page} / ${pages}</span><button class="btn sm sec" data-a="next"${V.page >= pages ? ' disabled' : ''}>›</button></div>`
