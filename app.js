@@ -478,7 +478,7 @@ const stOk = (r, f) => !f || (f === 'kurang' && r.kurang > 0) || (f === 'lebih' 
 const stBadge = s => `<span class="badge ${{ 'Sesuai': 'ok', 'Kurang': 'er', 'Kurang & Lebih': 'er', 'Lebih': 'wr' }[s] || ''}">${esc(s)}</span>`;
 const nK = v => v > 0 ? `<b style="color:var(--er)">${fnum(v)}</b>` : '<span class="mu">0</span>';
 const nL = v => v > 0 ? `<b style="color:#b54708">${fnum(v)}</b>` : '<span class="mu">0</span>';
-const kStd = k => K.d.standar.kat.find(x => x.k === k) || { n: k, rumus: '' };
+const kStd = k => (K.d && K.d.standar && K.d.standar.kat) ? (K.d.standar.kat.find(x => x.k === k) || { n: k, rumus: '' }) : { n: k, rumus: '' };
 const ktitle = () => `Analisis Kebutuhan Guru ${K.jenjang} Negeri — Tahun Ajaran ${K.d.tahun}`;
 
 async function pageKebutuhan() {
@@ -649,10 +649,10 @@ async function pageEntity(id) {
   // Tambah filter status negeri/swasta untuk sekolah, guru, kepsek, rombel
   let extraFlt = '';
   if (['sekolah','guru','kepsek','rombel'].includes(id)) {
-    extraFlt = `<select id="fstatus"><option value="">Semua Status</option><option value="Negeri">Negeri</option><option value="Swasta">Swasta</option></select>`;
+    extraFlt = `<select id="fstatus"><option value="">Semua Status Sekolah</option><option value="Negeri">Negeri</option><option value="Swasta">Swasta</option></select>`;
   }
   if (id === 'pegawai') {
-    extraFlt = `<select id="fstatus"><option value="">Semua Status</option><option value="PNS">PNS</option><option value="PPPK">PPPK</option><option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option></select>`;
+    extraFlt = `<select id="fstatus"><option value="">Semua (PNS/PPPK)</option><option value="PNS">PNS</option><option value="PPPK">PPPK</option><option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option></select>`;
   }
   $('#view').innerHTML = `<div id="extra"></div><div class="card"><div class="tools"><input id="q" type="search" placeholder="Cari…">
     ${flts.map(f => `<select data-f="${f.k}"><option value="">Semua ${esc(f.l)}</option>${f.o.map(o => `<option>${esc(o)}</option>`).join('')}</select>`).join('')}
@@ -674,14 +674,18 @@ function filtered() {
     for (const k in V.flt) if (k !== '_status' && V.flt[k] && r[k] !== V.flt[k]) return false;
     if (statusFlt) {
       if (V.id === 'pegawai') {
-        if (!String(r.status || '').toLowerCase().includes(statusFlt.toLowerCase())) return false;
+        const st = String(r.status || '').toLowerCase();
+        if (statusFlt && !st.includes(statusFlt.toLowerCase())) return false;
       } else {
-        let st = r.status_sekolah || '';
-        if (!st && r.npsn) {
-          const sek = S.refs.find(s => s.npsn === r.npsn || s.npsn === r.npsn_sekolah);
-          st = sek ? sek.status_sekolah || '' : '';
+        // Untuk guru/kepsek/rombel, status diambil dari sekolahnya
+        let npsn = r.npsn || r.npsn_sekolah || r.npsn_asal;
+        let st = '';
+        if (V.id === 'sekolah') st = r.status_sekolah || '';
+        else {
+          const sek = S.refs.find(s => s.npsn === npsn);
+          st = sek ? (sek.status_sekolah || '') : '';
         }
-        if (!String(st).toLowerCase().includes(statusFlt.toLowerCase())) return false;
+        if (statusFlt && !String(st).toLowerCase().includes(statusFlt.toLowerCase())) return false;
       }
     }
     if (!q) return true;
@@ -732,11 +736,18 @@ function drawTable() {
     $('#extra').innerHTML = '<div class="card" style="margin-bottom:12px;background:#eff6ff;border-color:#bfdbfe"><b>Alur Mediasi Perceraian:</b> Gunakan tombol di kolom aksi untuk mencetak dokumen: <b>Undangan</b>, <b>BA Mediasi</b>, <b>Pernyataan Gagal</b>, dan <b>Pelimpahan</b>.</div>';
   }
   // normal table for other entities
-  const cols = ent.fields.filter(f => !f.h && !f.v), per = 15;
+  let cols = ent.fields.filter(f => !f.h && !f.v);
+  if (V.id === 'kepsek') {
+    cols = cols.filter(f => ['nama','npsn_sekolah','status_kepsek','jenjang'].includes(f.k));
+  }
+  const per = 15;
   const pages = Math.max(1, Math.ceil(list.length / per)); if (V.page > pages) V.page = pages;
   const slice = list.slice((V.page - 1) * per, V.page * per);
   const act = r => {
     let a = `<button class="btn sm sec" data-a="view" data-id="${esc(r.id)}">Detail</button> `;
+    if (V.id === 'sekolah') {
+      a += `<button class="btn sm" data-a="guru-sekolah" data-npsn="${esc(r.npsn)}">Daftar Guru</button> `;
+    }
     if (V.id === 'mediasi') {
       a += `<button class="btn sm" data-a="undangan" data-id="${esc(r.id)}">Undangan</button> `;
       a += `<button class="btn sm" data-a="ba" data-id="${esc(r.id)}">BA Mediasi</button> `;
@@ -773,6 +784,16 @@ async function onTblClick(e) {
   const rec = V.rows.find(r => r.id === b.dataset.id);
   try {
     if (a === 'view') return openView(rec);
+  if (a === 'guru-sekolah') {
+    const npsn = b.dataset.npsn;
+    const nama = refName(npsn);
+    const gurus = (await api('list', { entity: 'guru' })).rows.filter(g => g.npsn_sekolah === npsn);
+    const html = gurus.length ? `<div class="tw" style="max-height:400px"><table><thead><tr><th>Nama</th><th>NIP</th><th>Status</th><th>Mapel</th></tr></thead><tbody>
+      ${gurus.map(g => `<tr><td>${esc(g.nama)}</td><td>${esc(g.nip||'–')}</td><td>${esc(g.status||'–')}</td><td>${esc(g.mapel||'–')}</td></tr>`).join('')}
+    </tbody></table></div><p class="mu">${gurus.length} guru</p>` : '<div class="empty">Belum ada data guru di sekolah ini.</div>';
+    modal('Daftar Guru — ' + esc(nama), html, async () => {}, { ok: 'Tutup', cancel: 'Batal' });
+    return;
+  }
     if (a === 'undangan') return cetakUndangan(rec);
     if (a === 'ba') return cetakBA(rec);
     if (a === 'pernyataan') return cetakPernyataan(rec);
