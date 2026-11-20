@@ -708,6 +708,45 @@ function drawTable() {
   if (V.id === 'mediasi') {
     $('#extra').innerHTML = '<div class="card" style="margin-bottom:12px;background:#eff6ff;border-color:#bfdbfe"><b>Alur Mediasi Perceraian:</b> Gunakan tombol di kolom aksi untuk mencetak dokumen: <b>Undangan</b>, <b>BA Mediasi</b>, <b>Pernyataan Gagal</b>, dan <b>Pelimpahan</b>.</div>';
   }
+  if (V.id === 'pegawai') {
+    // Sorting khusus pegawai
+    const order = ['kepala dinas', 'sekretaris', 'kepala bidang', 'kepala sub bagian', 'kepala seksi', 'staf pns', 'staf pppk', 'staf pppk paruh waktu', 'jabatan fungsional'];
+    const rank = r => {
+      const j = (r.jabatan || '').toLowerCase();
+      const st = (r.status || '').toLowerCase();
+      for (let i = 0; i < order.length; i++) if (j.includes(order[i]) || (order[i].includes('staf') && st.includes(order[i].replace('staf ','')))) return i;
+      if (st.includes('pns')) return 5;
+      if (st.includes('pppk paruh')) return 7;
+      if (st.includes('pppk')) return 6;
+      return 99;
+    };
+    list.sort((a, b) => rank(a) - rank(b) || (a.nama||'').localeCompare(b.nama||''));
+    const per = 15;
+    const pages = Math.max(1, Math.ceil(list.length / per)); if (V.page > pages) V.page = pages;
+    const slice = list.slice((V.page - 1) * per, V.page * per);
+    const waBtn = r => {
+      const hp = (r.no_hp || '').replace(/\D/g, '');
+      if (!hp) return '';
+      const num = hp.startsWith('0') ? '62' + hp.slice(1) : hp;
+      return `<a class="btn sm" href="https://wa.me/${num}" target="_blank" rel="noopener">📞 WA</a>`;
+    };
+    $('#tbl').innerHTML = list.length ? `<div class="tw"><table><thead><tr>
+      <th>#</th><th>Foto</th><th>Nama</th><th>NIP</th><th>Jabatan</th><th>Status</th><th></th>
+    </tr></thead><tbody>
+    ${slice.map((r, i) => `<tr>
+      <td>${(V.page - 1) * per + i + 1}</td>
+      <td><img src="${esc(r.foto || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(r.nama||'') + '&background=1a56db&color=fff&size=40')}" style="width:40px;height:40px;border-radius:50%;object-fit:cover" alt=""></td>
+      <td><b>${esc(r.nama||'')}</b></td>
+      <td>${esc(r.nip||'–')}</td>
+      <td>${esc(r.jabatan||'–')}</td>
+      <td>${cell({t:'select'}, r.status)}</td>
+      <td class="act">${waBtn(r)} ${act(r)}</td>
+    </tr>`).join('')}
+    </tbody></table></div>
+    <div class="pager"><span>${list.length} pegawai</span><button class="btn sm sec" data-a="prev"${V.page <= 1 ? ' disabled' : ''}>‹</button><span>${V.page} / ${pages}</span><button class="btn sm sec" data-a="next"${V.page >= pages ? ' disabled' : ''}>›</button></div>`
+    : '<div class="empty">Belum ada data pegawai.</div>';
+    return;
+  }
   // normal table for other entities
   let cols = ent.fields.filter(f => !f.h && !f.v);
   if (V.id === 'kepsek') {
