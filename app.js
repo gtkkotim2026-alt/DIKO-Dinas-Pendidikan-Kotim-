@@ -299,6 +299,7 @@ function init(r) {
   const isGuru = S.user.role === 'guru';
   const allowed = id => {
     if (isGuru) return id === 'portal_guru' || id === 'mutasi' || id === 'mediasi';
+    if (id.startsWith('sk_')) return true;
     return id === 'dashboard' || (id === 'lokasi' ? !!S.schema.sekolah : id === 'kebutuhan' ? !!S.schema.rombel : !!S.schema[id]);
   };
   const link = i => `<a href="#/${i.id}" data-id="${i.id}"><span class="nav-ico">${i.ico || '•'}</span><span class="nav-label">${esc(i.t)}</span></a>`;
@@ -429,15 +430,21 @@ async function pageDash() {
 
     // 1. Sekolah Negeri per kecamatan
     const sekMap = {};
-    kecamatan.forEach(k => sekMap[k] = { TK:0, SD:0, SMP:0 });
+    const guruMap = {};
+    const pdMap = {};
+    const rombelMap = {};
+    kecamatan.forEach(k => {
+      sekMap[k] = { TK:0, SD:0, SMP:0 };
+      guruMap[k] = { PNS:0, PPPK:0, PPPK_Paruh:0 };
+      pdMap[k] = { total:0 };
+      rombelMap[k] = 0;
+    });
     sekolah.filter(s => isNegeri(s) && jenjangOk(s.jenjang)).forEach(s => {
       const k = s.kecamatan || 'Tanpa Kecamatan';
       if (sekMap[k]) sekMap[k][s.jenjang]++;
     });
 
     // 2. Guru ASN di sekolah negeri
-    const guruMap = {};
-    kecamatan.forEach(k => guruMap[k] = { PNS:0, PPPK:0, PPPK_Paruh:0 });
     const sekByNpsn = Object.fromEntries(sekolah.map(s => [s.npsn, s]));
     guru.filter(isASN).forEach(g => {
       const sek = sekByNpsn[g.npsn_sekolah];
@@ -461,11 +468,13 @@ async function pageDash() {
     // Rekap per jenjang
     const rekap = { TK:{sekolah:0,rombel:0,siswa:0,guru:0}, SD:{sekolah:0,rombel:0,siswa:0,guru:0}, SMP:{sekolah:0,rombel:0,siswa:0,guru:0} };
     negeri.forEach(s => { if (rekap[s.jenjang]) rekap[s.jenjang].sekolah++; });
-    rombelNegeri.forEach(r => {
+    rombel.filter(r => negeriNpsn.has(r.npsn_sekolah)).forEach(r => {
       const sek = sekByNpsn[r.npsn_sekolah];
-      if (sek && rekap[sek.jenjang]) {
-        rekap[sek.jenjang].rombel++;
-        rekap[sek.jenjang].siswa += Number(r.jumlah_siswa) || 0;
+      if (!sek) return;
+      const k = sek.kecamatan || 'Tanpa Kecamatan';
+      if (rombelMap[k] !== undefined) {
+        rombelMap[k]++;
+        pdMap[k].total += Number(r.jumlah_siswa) || 0;
       }
     });
     guruNegeri.forEach(g => {
