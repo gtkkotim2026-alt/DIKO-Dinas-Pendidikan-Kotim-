@@ -815,36 +815,38 @@ async function pageSK(id) {
     sk_plt: 'SK Plt Kepala Sekolah'
   };
   $('#ttl').textContent = titles[id] || 'SK';
-  $('#view').innerHTML = '<div class="card mu">Memuat data…</div>';
+  $('#view').innerHTML = '<div class="card mu">Memuat data SK…</div>';
 
-  // Untuk sementara tampilkan daftar guru + tombol Input SK yang membuka form sesuai jenis
-  const rows = (await api('list', { entity: 'guru' })).rows;
+  let skList = [];
+  try {
+    const r = await api('listSK', { jenis: id });
+    skList = r.rows || [];
+  } catch (e) {
+    skList = [];
+  }
+
   const html = `<div class="card">
     <div class="tools">
       <div class="sp"></div>
       <button class="btn" id="addSK">+ Input SK Baru</button>
     </div>
-    <div class="tw"><table><thead><tr>
-      <th>#</th><th>Nama PTK</th><th>NIP</th><th>Sekolah</th><th>Jabatan</th><th>Status Sinkron</th><th></th>
+    ${skList.length ? `<div class="tw"><table><thead><tr>
+      <th>#</th><th>Nama PTK</th><th>Nomor SK</th><th>Tanggal SK</th><th>TMT</th><th>Status</th><th></th>
     </tr></thead><tbody>
-    ${rows.map((r, i) => `<tr>
+    ${skList.map((r, i) => `<tr>
       <td>${i+1}</td>
-      <td>${esc(r.nama)}</td>
-      <td>${esc(r.nip||'–')}</td>
-      <td>${esc(refName(r.npsn_sekolah))}</td>
-      <td>${esc(r.jabatan_ptk||'–')}</td>
-      <td>${r.sinkron_dapodik === 'Ya' ? '<span class="badge ok">Sinkron</span>' : '<span class="badge wr">Belum Sinkron</span>'}</td>
-      <td class="act"><button class="btn sm" data-id="${esc(r.id)}" data-sk="${id}">Input SK</button></td>
+      <td>${esc(r.nama || '–')}</td>
+      <td>${esc(r.no_sk || '–')}</td>
+      <td>${esc(r.tgl_sk || '–')}</td>
+      <td>${esc(r.tmt || '–')}</td>
+      <td><span class="badge wr">${esc(r.status || 'Draft')}</span></td>
+      <td class="act"><button class="btn sm sec" data-id="${esc(r.id)}">Detail</button></td>
     </tr>`).join('')}
-    </tbody></table></div>
+    </tbody></table></div>` : '<div class="empty">Belum ada dokumen SK yang diinput untuk jenis ini.</div>'}
   </div>`;
   $('#view').innerHTML = html;
 
   $('#addSK').onclick = () => openSKForm(id, null);
-  $('#view').onclick = e => {
-    const b = e.target.closest('button[data-sk]');
-    if (b) openSKForm(b.dataset.sk, rows.find(r => r.id === b.dataset.id));
-  };
 }
 
 function openSKForm(jenis, guru) {
@@ -1245,6 +1247,20 @@ function openForm(rec) {
       if (peg) {
         if ($('#f_nama', m)) $('#f_nama', m).value = peg.nama || '';
         if ($('#f_username', m) && isNew) $('#f_username', m).value = (peg.nip || '').replace(/\D/g,'') || '';
+        // Auto isi foto jika ada
+        if (peg.foto) {
+          $('#fotoPrev', m).innerHTML = `<img src="${esc(peg.foto)}" style="width:64px;height:64px;border-radius:50%;object-fit:cover">`;
+          // simpan URL foto untuk dikirim
+          if (!$('#f_foto_hidden', m)) {
+            const hid = document.createElement('input');
+            hid.type = 'hidden';
+            hid.id = 'f_foto_hidden';
+            hid.value = peg.foto;
+            m.appendChild(hid);
+          } else {
+            $('#f_foto_hidden', m).value = peg.foto;
+          }
+        }
       }
     };
     $('#userFoto', m).onchange = function() {
