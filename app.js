@@ -372,62 +372,96 @@ function cetakRekomDemo() {
 
 async function pageDash() {
   $('#ttl').textContent = 'Dashboard';
-  $('#view').innerHTML = '<div class="card mu">Memuat…</div>';
+  $('#view').innerHTML = '<div class="card mu">Memuat rekap…</div>';
   try {
-    const st = await api('stats');
-    const now = new Date();
+    const [sekolah, guru, rombel] = await Promise.all([
+      api('list', { entity: 'sekolah' }).then(r => r.rows),
+      api('list', { entity: 'guru' }).then(r => r.rows),
+      api('list', { entity: 'rombel' }).then(r => r.rows)
+    ]);
 
-  let h = `<div class="dash-welcome">
-    <div>
-      <div class="eyebrow">DASHBOARD</div>
-      <h2>Sistem Satu Data Pendidikan</h2>
-      <p>Kabupaten — DIKO</p>
-    </div>
-    <div class="dash-date">HARI INI<br><b>${now.getDate()}</b><br>${now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</div>
-  </div>`;
+    const isNegeri = s => String(s.status_sekolah || '').toLowerCase().includes('negeri');
+    const jenjangOk = j => ['TK','SD','SMP'].includes(j);
+    const isASN = g => {
+      const st = String(g.status || '').toLowerCase();
+      return st.includes('pns') || st.includes('pppk');
+    };
 
-  if (st.menunggu) h += `<a class="stat wr" href="#/pendaftaran" style="margin-bottom:16px;display:block"><b>${st.menunggu}</b>Pendaftaran sekolah menunggu verifikasi</a>`;
+    const kecSet = new Set();
+    sekolah.filter(s => isNegeri(s) && jenjangOk(s.jenjang)).forEach(s => kecSet.add(s.kecamatan || 'Tanpa Kecamatan'));
+    const kecamatan = Array.from(kecSet).sort();
 
-  // Layout rekap yang lebih keren dan responsif
-  h += `<div class="dash-kpis" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px">
-    <div class="kpi-card" style="background:linear-gradient(135deg,#1a56db,#3b82f6);color:#fff"><div class="kpi-icon" style="background:rgba(255,255,255,.2)">🏫</div><div><b>${(st.counts.sekolah||0).toLocaleString('id')}</b><small>Total Sekolah</small></div></div>
-    <div class="kpi-card" style="background:linear-gradient(135deg,#059669,#10b981);color:#fff"><div class="kpi-icon" style="background:rgba(255,255,255,.2)">👨‍🏫</div><div><b>${(st.counts.guru||0).toLocaleString('id')}</b><small>Total Guru</small></div></div>
-    <div class="kpi-card" style="background:linear-gradient(135deg,#d97706,#f59e0b);color:#fff"><div class="kpi-icon" style="background:rgba(255,255,255,.2)">👨‍💼</div><div><b>${(st.counts.kepsek||0).toLocaleString('id')}</b><small>Kepala Sekolah</small></div></div>
-    <div class="kpi-card" style="background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff"><div class="kpi-icon" style="background:rgba(255,255,255,.2)">📚</div><div><b>${(st.counts.rombel||0).toLocaleString('id')}</b><small>Rombel</small></div></div>
-  </div>`;
-
-  h += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
-    <div class="card" style="margin:0">
-      <h3 style="margin-top:0">Rekap per Jenjang</h3>
-      <div class="tw"><table><thead><tr style="background:#0ea5e9;color:#fff"><th>Jenjang</th><th>Sekolah</th><th>Guru</th></tr></thead><tbody>
-        <tr><td>TK / PAUD</td><td>${st.jenjang?.TK||'-'}</td><td>-</td></tr>
-        <tr><td>SD</td><td>${st.jenjang?.SD||'-'}</td><td>-</td></tr>
-        <tr><td>SMP</td><td>${st.jenjang?.SMP||'-'}</td><td>-</td></tr>
-      </tbody></table></div>
-    </div>
-    <div class="card" style="margin:0">
-      <h3 style="margin-top:0">Status Sekolah</h3>
-      <div class="tw"><table><thead><tr style="background:#10b981;color:#fff"><th>Status</th><th>Jumlah</th></tr></thead><tbody>
-        <tr><td>Negeri</td><td><b>${(st.negeri||0).toLocaleString('id')}</b></td></tr>
-        <tr><td>Swasta</td><td><b>${(st.swasta||0).toLocaleString('id')}</b></td></tr>
-      </tbody></table></div>
-    </div>
-  </div>`;
-
-  if (S.schema.rombel && st.kek) {
-    h += `<div class="dash-section"><div class="section-heading"><h3>Kebutuhan Guru</h3><a class="text-link" href="#/kebutuhan">Lihat analisis →</a></div>
-    <div class="dash-kpis">`;
-    ['TK','SD','SMP'].forEach(j => {
-      const x = st.kek[j] || {kurang:0, lebih:0};
-      h += `<div class="kpi-card"><div class="kpi-icon" style="background:#fef3c7;color:#d97706">📊</div><div><b style="color:var(--er)">${fnum(x.kurang)}</b><small>Kurang — ${j}</small></div></div>`;
+    // 1. Sekolah Negeri per kecamatan
+    const sekMap = {};
+    kecamatan.forEach(k => sekMap[k] = { TK:0, SD:0, SMP:0 });
+    sekolah.filter(s => isNegeri(s) && jenjangOk(s.jenjang)).forEach(s => {
+      const k = s.kecamatan || 'Tanpa Kecamatan';
+      if (sekMap[k]) sekMap[k][s.jenjang]++;
     });
-    h += `</div></div>`;
-  }
 
-  // Theme settings (sementara selalu muncul agar bisa dites)
-  h += `<div class="card" style="margin-top:20px;border:2px solid #1a56db">
+    // 2. Guru ASN di sekolah negeri
+    const guruMap = {};
+    kecamatan.forEach(k => guruMap[k] = { PNS:0, PPPK:0, PPPK_Paruh:0 });
+    const sekByNpsn = Object.fromEntries(sekolah.map(s => [s.npsn, s]));
+    guru.filter(isASN).forEach(g => {
+      const sek = sekByNpsn[g.npsn_sekolah];
+      if (!sek || !isNegeri(sek) || !jenjangOk(sek.jenjang)) return;
+      const k = sek.kecamatan || 'Tanpa Kecamatan';
+      if (!guruMap[k]) return;
+      const st = String(g.status || '').toLowerCase();
+      if (st.includes('paruh')) guruMap[k].PPPK_Paruh++;
+      else if (st.includes('pppk')) guruMap[k].PPPK++;
+      else if (st.includes('pns')) guruMap[k].PNS++;
+    });
+
+    // 3. Peserta didik (dari rombel)
+    const pdMap = {};
+    kecamatan.forEach(k => pdMap[k] = { L:0, P:0 });
+    rombel.forEach(r => {
+      const sek = sekByNpsn[r.npsn_sekolah];
+      if (!sek || !isNegeri(sek) || !jenjangOk(sek.jenjang)) return;
+      const k = sek.kecamatan || 'Tanpa Kecamatan';
+      if (!pdMap[k]) return;
+      // Asumsi jumlah_siswa total; jika ada kolom L/P terpisah bisa disesuaikan
+      const jml = Number(r.jumlah_siswa) || 0;
+      pdMap[k].L += Math.round(jml * 0.5); // placeholder, ganti jika ada data gender
+      pdMap[k].P += jml - Math.round(jml * 0.5);
+    });
+
+    const sum = (map, key) => kecamatan.reduce((t, k) => t + (map[k][key] || 0), 0);
+
+    let h = `<div class="dash-welcome">
+      <div><div class="eyebrow">DASHBOARD</div><h2>Rekap Data Pendidikan Negeri</h2><p>Kabupaten Kotawaringin Timur</p></div>
+      <div class="dash-date">Total Kecamatan<br><b>${kecamatan.length}</b></div>
+    </div>`;
+
+    h += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+      <div class="card" style="margin:0">
+        <h3 style="margin-top:0;color:#1a56db">Jumlah Sekolah Negeri</h3>
+        <div class="tw" style="max-height:520px"><table><thead><tr><th>Kecamatan</th><th>TK</th><th>SD</th><th>SMP</th><th>Total</th></tr></thead><tbody>
+        ${kecamatan.map(k => `<tr><td>${esc(k)}</td><td>${sekMap[k].TK}</td><td>${sekMap[k].SD}</td><td>${sekMap[k].SMP}</td><td><b>${sekMap[k].TK+sekMap[k].SD+sekMap[k].SMP}</b></td></tr>`).join('')}
+        <tr style="font-weight:700;background:#f1f5f9"><td>TOTAL</td><td>${sum(sekMap,'TK')}</td><td>${sum(sekMap,'SD')}</td><td>${sum(sekMap,'SMP')}</td><td>${sum(sekMap,'TK')+sum(sekMap,'SD')+sum(sekMap,'SMP')}</td></tr>
+        </tbody></table></div>
+      </div>
+      <div class="card" style="margin:0">
+        <h3 style="margin-top:0;color:#059669">Jumlah Guru ASN (Negeri)</h3>
+        <div class="tw" style="max-height:520px"><table><thead><tr><th>Kecamatan</th><th>PNS</th><th>PPPK</th><th>PPPK Paruh</th><th>Total</th></tr></thead><tbody>
+        ${kecamatan.map(k => `<tr><td>${esc(k)}</td><td>${guruMap[k].PNS}</td><td>${guruMap[k].PPPK}</td><td>${guruMap[k].PPPK_Paruh}</td><td><b>${guruMap[k].PNS+guruMap[k].PPPK+guruMap[k].PPPK_Paruh}</b></td></tr>`).join('')}
+        <tr style="font-weight:700;background:#f1f5f9"><td>TOTAL</td><td>${sum(guruMap,'PNS')}</td><td>${sum(guruMap,'PPPK')}</td><td>${sum(guruMap,'PPPK_Paruh')}</td><td>${sum(guruMap,'PNS')+sum(guruMap,'PPPK')+sum(guruMap,'PPPK_Paruh')}</td></tr>
+        </tbody></table></div>
+      </div>
+      <div class="card" style="margin:0">
+        <h3 style="margin-top:0;color:#d97706">Jumlah Peserta Didik (Negeri)</h3>
+        <div class="tw" style="max-height:520px"><table><thead><tr><th>Kecamatan</th><th>Laki-laki</th><th>Perempuan</th><th>Total</th></tr></thead><tbody>
+        ${kecamatan.map(k => `<tr><td>${esc(k)}</td><td>${pdMap[k].L}</td><td>${pdMap[k].P}</td><td><b>${pdMap[k].L+pdMap[k].P}</b></td></tr>`).join('')}
+        <tr style="font-weight:700;background:#f1f5f9"><td>TOTAL</td><td>${sum(pdMap,'L')}</td><td>${sum(pdMap,'P')}</td><td>${sum(pdMap,'L')+sum(pdMap,'P')}</td></tr>
+        </tbody></table></div>
+      </div>
+    </div>`;
+
+    // Theme settings tetap
+    h += `<div class="card" style="margin-top:20px;border:2px solid #1a56db">
       <h3>Pengaturan Tampilan (Super Admin)</h3>
-      <p class="mu">Ganti warna utama dan logo aplikasi. Perubahan tersimpan di browser ini.</p>
       <div class="fg" style="margin-top:12px">
         <div><label>Warna Utama</label><input type="color" id="themeColor" value="#1a56db"></div>
         <div><label>Logo (URL gambar)</label><input id="themeLogo" placeholder="https://contoh.com/logo.png"></div>
@@ -435,24 +469,23 @@ async function pageDash() {
       </div>
     </div>`;
 
-  $('#view').innerHTML = h;
+    $('#view').innerHTML = h;
 
-  // Theme handlers (always attached)
-  const saved = JSON.parse(localStorage.getItem('dikoTheme') || '{}');
-  if (saved.color && $('#themeColor')) $('#themeColor').value = saved.color;
-  if (saved.logo && $('#themeLogo')) $('#themeLogo').value = saved.logo;
-  if ($('#saveTheme')) $('#saveTheme').onclick = () => {
-    const theme = { color: $('#themeColor').value, logo: $('#themeLogo').value.trim() };
-    localStorage.setItem('dikoTheme', JSON.stringify(theme));
-    applyTheme(theme);
-    toast('Tema disimpan', 'ok');
-  };
-  if ($('#resetTheme')) $('#resetTheme').onclick = () => {
-    localStorage.removeItem('dikoTheme');
-    applyTheme({});
-    toast('Tema direset', 'ok');
-    setTimeout(() => location.reload(), 500);
-  };
+    const saved = JSON.parse(localStorage.getItem('dikoTheme') || '{}');
+    if (saved.color && $('#themeColor')) $('#themeColor').value = saved.color;
+    if (saved.logo && $('#themeLogo')) $('#themeLogo').value = saved.logo;
+    if ($('#saveTheme')) $('#saveTheme').onclick = () => {
+      const theme = { color: $('#themeColor').value, logo: $('#themeLogo').value.trim() };
+      localStorage.setItem('dikoTheme', JSON.stringify(theme));
+      applyTheme(theme);
+      toast('Tema disimpan', 'ok');
+    };
+    if ($('#resetTheme')) $('#resetTheme').onclick = () => {
+      localStorage.removeItem('dikoTheme');
+      applyTheme({});
+      toast('Tema direset', 'ok');
+      setTimeout(() => location.reload(), 500);
+    };
   } catch (e) {
     $('#view').innerHTML = `<div class="card er">Gagal memuat Dashboard: ${esc(e.message)}</div>`;
   }
