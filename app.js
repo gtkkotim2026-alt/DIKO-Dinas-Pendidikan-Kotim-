@@ -859,7 +859,10 @@ async function pageSK(id) {
       <td>${esc(r.tmt || '–')}</td>
       <td><span class="badge ${r.file_name ? 'ok' : 'wr'}">${r.file_name ? 'Dokumen Ada' : 'Belum Upload'}</span></td>
       <td class="act">
-        ${!r.file_name ? `<button class="btn sm" data-upload="${esc(r.id)}">Upload SK</button>` : `<a class="btn sm sec" href="#" data-download="${esc(r.id)}">Lihat</a>`}
+        <button class="btn sm" data-upload="${esc(r.id)}">Upload SK</button>
+        ${r.file_name ? `<button class="btn sm sec" data-view="${esc(r.id)}">Lihat SK</button>` : ''}
+        <button class="btn sm sec" data-edit="${esc(r.id)}">Ubah</button>
+        <button class="btn sm dan" data-del="${esc(r.id)}">Hapus</button>
       </td>
     </tr>`).join('')}
     </tbody></table></div>` : '<div class="empty">Belum ada dokumen SK yang diinput untuk jenis ini.</div>'}
@@ -869,6 +872,8 @@ async function pageSK(id) {
   $('#addSK').onclick = () => openSKForm(id, null);
   $('#view').onclick = async e => {
     const up = e.target.closest('[data-upload]');
+    const del = e.target.closest('[data-del]');
+    const view = e.target.closest('[data-view]');
     if (up) {
       const input = document.createElement('input');
       input.type = 'file'; input.accept = '.pdf';
@@ -882,6 +887,12 @@ async function pageSK(id) {
       };
       input.click();
     }
+    if (del && confirm('Hapus data SK ini?')) {
+      await api('deleteSK', { id: del.dataset.del, jenis: id });
+      toast('Data dihapus', 'ok');
+      pageSK(id);
+    }
+    if (view) toast('Fitur lihat SK akan menampilkan file PDF', 'ok');
   };
 }
 
@@ -1081,11 +1092,15 @@ function openSKForm(jenis, guru) {
     if (isMulti) {
       const names = [...document.querySelectorAll('#ptkList .ptk-item')].map(el => el.dataset.id);
       if (!names.length) throw new Error('Tambahkan minimal satu nama PTK');
-      data.ptk_ids = names;
-      data.ptk_id = names[0]; // untuk kompatibilitas
+      for (const pid of names) {
+        const one = Object.assign({}, data, { ptk_id: pid });
+        await api('saveSK', one);
+      }
+      toast(names.length + ' data SK berhasil disimpan', 'ok');
+    } else {
+      await api('saveSK', data);
+      toast('SK berhasil disimpan', 'ok');
     }
-    await api('saveSK', data);
-    toast('SK berhasil disimpan', 'ok');
     pageSK(jenis);
   }, { ok: 'Simpan' });
 
