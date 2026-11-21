@@ -844,6 +844,34 @@ function exportK() {
 }
 
 /* ---------- halaman data generik ---------- */
+
+function addSearchPrint(containerId, tableSelector) {
+  const tools = document.querySelector(containerId + ' .tools') || document.querySelector('.tools');
+  if (!tools || tools.querySelector('.search-box')) return;
+  const box = document.createElement('div');
+  box.className = 'search-box';
+  box.style.cssText = 'display:flex;gap:8px;align-items:center';
+  box.innerHTML = `<input id="tblSearch" placeholder="Cari..." style="padding:6px 10px;border:1px solid var(--bd);border-radius:8px;width:180px">
+    <button class="btn sm sec" id="tblPrint">Cetak</button>`;
+  tools.prepend(box);
+  const input = box.querySelector('#tblSearch');
+  const printBtn = box.querySelector('#tblPrint');
+  input.oninput = () => {
+    const q = input.value.toLowerCase();
+    document.querySelectorAll(tableSelector + ' tbody tr').forEach(tr => {
+      tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  };
+  printBtn.onclick = () => {
+    const rows = [...document.querySelectorAll(tableSelector + ' tbody tr')].filter(tr => tr.style.display !== 'none');
+    const win = window.open('', '_blank');
+    const title = document.getElementById('ttl').textContent;
+    win.document.write(`<html><head><title>${title}</title><style>body{font-family:Arial;font-size:12px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:5px}</style></head><body><h2>${title}</h2><table>${document.querySelector(tableSelector).innerHTML}</table></body></html>`);
+    win.document.close();
+    win.print();
+  };
+}
+
 async function pageSK(id) {
   const titles = {
     sk_pemberhentian: 'SK Pemberhentian',
@@ -889,6 +917,7 @@ async function pageSK(id) {
     </tbody></table></div>` : '<div class="empty">Belum ada dokumen SK yang diinput untuk jenis ini.</div>'}
   </div>`;
   $('#view').innerHTML = html;
+  addSearchPrint('#view', '#view table');
 
   $('#addSK').onclick = () => openSKForm(id, null);
   $('#cetakSK').onclick = () => cetakLaporanSK(id, skList);
@@ -1080,7 +1109,7 @@ function openSKForm(jenis, guru, editRec) {
         <div><label>TMT Pemberhentian</label><input id="sk_tmt" type="date" required></div>
         <div class="full"><label>Pejabat yang Menetapkan</label><input id="sk_pejabat" required></div>
         <div class="full"><label>Keterangan</label><textarea id="sk_ket" rows="2"></textarea></div>
-        <div class="full"><label>Upload SK (PDF)</label><input id="sk_file" type="file" accept=".pdf" required></div>
+        <div class="full"><label>Upload SK (PDF) — opsional, bisa diunggah nanti</label><input id="sk_file" type="file" accept=".pdf"></div>
       </div>`;
   } else if (jenis === 'sk_mutasi') {
     fields = `
@@ -1106,7 +1135,7 @@ function openSKForm(jenis, guru, editRec) {
         <div><label>Tanggal SK</label><input id="sk_tgl" type="date" required></div>
         <div><label>TMT Mutasi</label><input id="sk_tmt" type="date" required></div>
         <div class="full"><label>Pejabat yang Menetapkan</label><input id="sk_pejabat" required></div>
-        <div class="full"><label>Upload SK (PDF)</label><input id="sk_file" type="file" accept=".pdf" required></div>
+        <div class="full"><label>Upload SK (PDF) — opsional, bisa diunggah nanti</label><input id="sk_file" type="file" accept=".pdf"></div>
       </div>`;
   } else if (jenis === 'sk_definitif' || jenis === 'sk_plt') {
     const isPlt = jenis === 'sk_plt';
@@ -1150,15 +1179,16 @@ function openSKForm(jenis, guru, editRec) {
     if (!isMulti) {
       const fileInput = $('#sk_file', modalEl);
       file = fileInput && fileInput.files[0];
-      if (!file) throw new Error('File SK wajib diunggah');
-      if (file.size > 1024 * 1024) throw new Error('Ukuran file maksimal 1 MB');
-      if (!file.name.toLowerCase().endsWith('.pdf')) throw new Error('File harus berformat PDF');
-      base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      if (file) {
+        if (file.size > 1024 * 1024) throw new Error('Ukuran file maksimal 1 MB');
+        if (!file.name.toLowerCase().endsWith('.pdf')) throw new Error('File harus berformat PDF');
+        base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result.split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
     }
 
     const ptkEl = $('#sk_ptk', modalEl) || $('#sk_ptk_add', modalEl);
@@ -1190,7 +1220,7 @@ function openSKForm(jenis, guru, editRec) {
       data.akhir = ($('#sk_akhir', modalEl) || {}).value || '';
     }
 
-    if (!isMulti) {
+    if (!isMulti && file) {
       data.file_name = file.name;
       data.file_base64 = base64;
     }
@@ -1325,56 +1355,60 @@ function cetakLaporanSK(jenis, list) {
 }
 
 
-function openImportPeriode() {
-  const html = `<div>
-    <p class="mu">Unggah file Excel sesuai format Rekap TMT Kepala Sekolah (kolom: NAMA, NIP, ASAL SEKOLAH, TMT SK, PERIODE 1-4, LINK SK, KETERANGAN).</p>
-    <input type="file" id="impFile" accept=".xlsx,.xls">
-    <div id="impPreview" style="margin-top:10px"></div>
-  </div>`;
-  modal('Impor Periode Kepala Sekolah', html, async () => {
-    const f = $('#impFile').files[0];
-    if (!f) throw new Error('Pilih file Excel');
-    const data = await f.arrayBuffer();
-    const wb = XLSX.read(data);
+
+function showColumnMatch(file, targets, onConfirm) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result);
     const sheet = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-    // Cari baris header
-    let headerIdx = rows.findIndex(r => r.some(c => String(c).toUpperCase().includes('NAMA') && String(c).toUpperCase().includes('NIP') === false));
-    if (headerIdx < 0) headerIdx = 4;
-    const headers = rows[headerIdx].map(h => String(h||'').trim().toUpperCase());
-    const get = (row, keys) => {
-      for (const k of keys) {
-        const i = headers.findIndex(h => h.includes(k));
-        if (i >= 0) return row[i] || '';
+    let hIdx = rows.findIndex(r => r.filter(c => String(c||'').trim()).length >= 3);
+    if (hIdx < 0) hIdx = 0;
+    const headers = rows[hIdx].map((h,i) => String(h||'').trim() || ('Kolom ' + (i+1)));
+    const html = `<div class="tw" style="max-height:320px"><table><thead><tr><th>Kolom Aplikasi</th><th>Kolom di Excel</th></tr></thead><tbody>
+      ${targets.map(t => `<tr><td>${esc(t.l)}</td><td><select data-k="${t.k}"><option value="-1">— tidak dipakai —</option>${headers.map((h,i)=>`<option value="${i}">${esc(h)}</option>`).join('')}</select></td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="mu">Pilih kolom Excel yang sesuai dengan data aplikasi.</p>`;
+    modal('Pencocokan Kolom', html, () => {
+      const map = {};
+      document.querySelectorAll('#modal select[data-k]').forEach(s => { if (s.value !== '-1') map[s.dataset.k] = +s.value; });
+      const data = [];
+      for (let i = hIdx + 1; i < rows.length; i++) {
+        const row = rows[i];
+        const obj = {};
+        let has = false;
+        targets.forEach(t => {
+          if (map[t.k] != null) {
+            obj[t.k] = row[map[t.k]] != null ? String(row[map[t.k]]).trim() : '';
+            if (obj[t.k]) has = true;
+          }
+        });
+        if (has && (obj.nama || obj.nama_pengawas || obj.npsn)) data.push(obj);
       }
-      return '';
-    };
-    const imported = [];
-    for (let i = headerIdx + 1; i < rows.length; i++) {
-      const row = rows[i];
-      const nama = get(row, ['NAMA']);
-      if (!nama || nama.length < 3) continue;
-      imported.push({
-        nama: nama,
-        nip: get(row, ['NIP']),
-        jabatan: get(row, ['JABATAN']),
-        no_hp: get(row, ['HP', 'WA', 'NO.']),
-        sekolah: get(row, ['ASAL SEKOLAH', 'SEKOLAH']),
-        kecamatan: get(row, ['KECAMATAN']),
-        tmt: get(row, ['TMT']),
-        keterangan: get(row, ['KETERANGAN']),
-        link_sk: get(row, ['LINK']),
-        periode1: get(row, ['PERIODE 1']),
-        periode2: get(row, ['PERIODE 2']),
-        periode3: get(row, ['PERIODE 3']),
-        periode4: get(row, ['PERIODE 4'])
-      });
-    }
-    if (!imported.length) throw new Error('Tidak ada data yang terbaca');
-    await api('importPeriode', { rows: imported });
-    toast(imported.length + ' data berhasil diimpor', 'ok');
-    pagePeriodeKepsek();
-  }, { ok: 'Impor' });
+      if (!data.length) throw new Error('Tidak ada data yang terbaca setelah pencocokan');
+      onConfirm(data);
+    }, { ok: 'Impor Data' });
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function openImportPeriode() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.xlsx,.xls';
+  input.onchange = () => {
+    const targets = [
+      {k:'nama',l:'Nama'},{k:'nip',l:'NIP'},{k:'jabatan',l:'Jabatan'},{k:'no_hp',l:'No. HP'},
+      {k:'sekolah',l:'Asal Sekolah'},{k:'kecamatan',l:'Kecamatan'},{k:'tmt',l:'TMT SK'},
+      {k:'keterangan',l:'Keterangan'},{k:'link_sk',l:'Link SK'},
+      {k:'periode1',l:'Periode 1'},{k:'periode2',l:'Periode 2'},{k:'periode3',l:'Periode 3'},{k:'periode4',l:'Periode 4'}
+    ];
+    showColumnMatch(input.files[0], targets, async data => {
+      await api('importPeriode', { rows: data });
+      toast(data.length + ' data berhasil diimpor', 'ok');
+      pagePeriodeKepsek();
+    });
+  };
+  input.click();
 }
 
 async function pagePeriodeKepsek() {
@@ -1415,13 +1449,30 @@ async function pagePeriodeKepsek() {
     </tbody></table></div>` : '<div class="empty">Belum ada data. Gunakan Impor Excel atau Tambah.</div>'}
   </div>`;
   $('#view').innerHTML = html;
+  addSearchPrint('#view', '#view table');
   $('#impPeriode').onclick = () => openImportPeriode();
   $('#addPeriode').onclick = () => toast('Form tambah periode akan ditambahkan.', 'ok');
 }
 
 
 function openImportPengawas() {
-  const html = `<p class="mu">Unggah file Excel Data Pengawas (kolom: NAMA, NIP, NUPTK, STATUS, JABATAN).</p>
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.xlsx,.xls';
+  input.onchange = () => {
+    const targets = [
+      {k:'nama',l:'Nama'},{k:'nip',l:'NIP'},{k:'nuptk',l:'NUPTK'},
+      {k:'jabatan',l:'Jabatan'},{k:'status',l:'Status'}
+    ];
+    showColumnMatch(input.files[0], targets, async data => {
+      await api('importPengawas', { rows: data });
+      toast(data.length + ' pengawas diimpor', 'ok');
+      pagePengawas();
+    });
+  };
+  input.click();
+}
+function _oldImportPengawas() {
+  const html = `<p class="mu">Unggah file Excel Data Pengawas.</p>
     <input type="file" id="impFile" accept=".xlsx,.xls">`;
   modal('Impor Data Pengawas', html, async () => {
     const f = $('#impFile').files[0];
@@ -1474,11 +1525,29 @@ async function pageWilayahBinaan() {
     ${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.nama_pengawas||'')}</td><td>${esc(r.nip||'')}</td><td>${esc(r.npsn||'')}</td><td>${esc(r.nama_sekolah||'')}</td><td>${esc(r.jenjang||'')}</td><td>${esc(r.kecamatan||'')}</td></tr>`).join('')}
     </tbody></table></div>` : '<div class="empty">Belum ada data. Gunakan Impor Excel.</div>'}
   </div>`;
+  addSearchPrint('#view', '#view table');
   $('#impWilayah').onclick = openImportWilayah;
 }
 
 function openImportWilayah() {
-  const html = `<p class="mu">Unggah file Lampiran SK Pengawas (format dengan kolom Nama Pengawas, NPSN, Nama Sekolah, Kecamatan).</p>
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.xlsx,.xls';
+  input.onchange = () => {
+    const targets = [
+      {k:'nama_pengawas',l:'Nama Pengawas'},{k:'nip',l:'NIP'},
+      {k:'npsn',l:'NPSN'},{k:'nama_sekolah',l:'Nama Sekolah'},
+      {k:'jenjang',l:'Jenjang'},{k:'kecamatan',l:'Kecamatan'}
+    ];
+    showColumnMatch(input.files[0], targets, async data => {
+      await api('importWilayah', { rows: data });
+      toast(data.length + ' data wilayah diimpor', 'ok');
+      pageWilayahBinaan();
+    });
+  };
+  input.click();
+}
+function _oldImportWilayah() {
+  const html = `<p class="mu">Unggah file Lampiran SK Pengawas.</p>
     <input type="file" id="impFile" accept=".xlsx,.xls">`;
   modal('Impor Wilayah Binaan', html, async () => {
     const f = $('#impFile').files[0];
@@ -1534,6 +1603,7 @@ async function pagePengawas() {
     </tbody></table></div>` : '<div class="empty">Belum ada data pengawas. Gunakan Impor Excel.</div>'}
   </div>`;
   $('#view').innerHTML = html;
+  addSearchPrint('#view', '#view table');
   $('#impPengawas').onclick = () => openImportPengawas();
   $('#addPengawas').onclick = () => openFormPengawas();
 }
