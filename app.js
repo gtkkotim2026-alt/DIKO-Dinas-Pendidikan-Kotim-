@@ -1174,9 +1174,9 @@ function openSKForm(jenis, guru, editRec) {
       data.file_base64 = base64;
     }
     if (isMulti) {
-      const items = [...document.querySelectorAll('#ptkList .ptk-item')]; const names = items.map(el => el.dataset.id);
-      if (!names.length) throw new Error('Tambahkan minimal satu nama PTK');
       const items = [...document.querySelectorAll('#ptkList .ptk-item')];
+      const names = items.map(el => el.dataset.id);
+      if (!names.length) throw new Error('Tambahkan minimal satu nama PTK');
       for (const el of items) {
         const one = Object.assign({}, data, { ptk_id: el.dataset.id, sekolah: el.dataset.sekolah });
         await api('saveSK', one);
