@@ -1433,7 +1433,7 @@ async function pagePeriodeKepsek() {
   $('#ttl').textContent = 'Periode Kepala Sekolah';
   $('#view').innerHTML = '<div class="card mu">Memuat data…</div>';
   let rows = [];
-  try { rows = (await api('list', { entity: 'periode_kepsek' })).rows || []; } catch(e) {}
+  try { rows = (await api('listPeriode')).rows || []; } catch(e) {}
   const html = `<div class="card">
     <div class="tools">
       <div class="sp"></div>
@@ -1441,25 +1441,24 @@ async function pagePeriodeKepsek() {
       <button class="btn" id="addPeriode">+ Tambah</button>
     </div>
     ${rows.length ? `<div class="tw" style="overflow-x:auto"><table><thead><tr>
-      <th>No</th><th>Nama</th><th>NIP</th>
-      <th>Periode 1</th><th>Periode 2</th><th>Periode 3</th><th>Periode 4</th><th>Periode 5</th>
-      <th>Riwayat Sekolah</th>
-      <th>SK 1</th><th>SK 2</th><th>SK 3</th><th>SK 4</th><th>SK 5</th>
-      <th>Keterangan</th>
+      <th>No</th><th>Nama</th><th>NIP</th><th>Jabatan</th><th>Asal Sekolah</th><th>Kecamatan</th>
+      <th>TMT SK</th><th>Periode 1</th><th>Periode 2</th><th>Periode 3</th><th>Periode 4</th><th>Keterangan</th><th>Link SK</th><th></th>
     </tr></thead><tbody>
     ${rows.map((r,i) => `<tr>
       <td>${i+1}</td>
       <td>${esc(r.nama||'–')}</td>
       <td>${esc(r.nip||'–')}</td>
+      <td>${esc(r.jabatan||'–')}</td>
+      <td>${esc(r.sekolah||'–')}</td>
+      <td>${esc(r.kecamatan||'–')}</td>
+      <td>${esc(r.tmt||'–')}</td>
       <td>${esc(r.periode1||'–')}</td>
       <td>${esc(r.periode2||'–')}</td>
       <td>${esc(r.periode3||'–')}</td>
       <td>${esc(r.periode4||'–')}</td>
-      <td>${esc(r.periode5||'–')}</td>
-      <td>${esc(r.riwayat_sekolah||'–')}</td>
-      <td>${r.sk1 ? 'Ada' : '–'}</td>
-      <td>${r.sk2 ? 'Ada' : '–'}</td>
-      <td>${r.sk3 ? 'Ada' : '–'}</td>
+      <td>${esc(r.keterangan||'–')}</td>
+      <td>${r.link_sk ? `<a class="btn sm sec" href="${esc(r.link_sk)}" target="_blank">Lihat SK</a>` : '–'}</td>
+      <td><button class="btn sm sec" data-edit-periode="${esc(r.id)}">Edit</button></td>
       <td>${r.sk4 ? 'Ada' : '–'}</td>
       <td>${r.sk5 ? 'Ada' : '–'}</td>
       <td>${esc(r.keterangan||'')}</td>
@@ -1470,6 +1469,9 @@ async function pagePeriodeKepsek() {
   addSearchPrint('#view', '#view table');
   $('#impPeriode').onclick = () => openImportPeriode();
   $('#addPeriode').onclick = () => toast('Form tambah periode akan ditambahkan.', 'ok');
+  document.querySelectorAll('[data-edit-periode]').forEach(btn => {
+    btn.onclick = () => toast('Form edit periode akan dibuka.', 'ok');
+  });
 }
 
 
@@ -1604,7 +1606,8 @@ async function pagePengawas() {
   $('#ttl').textContent = 'Data Pengawas Sekolah';
   $('#view').innerHTML = '<div class="card mu">Memuat data…</div>';
   let rows = [];
-  try { rows = (await api('list', { entity: 'pengawas' })).rows || []; } catch(e) {}
+  try { rows = (await api('listPengawas')).rows || []; } catch(e) {}
+  const statusOpt = s => ['Aktif','Tidak Aktif','Pensiun'].map(o => `<option${o===s?' selected':''}>${o}</option>`).join('');
   const html = `<div class="card">
     <div class="tools">
       <div class="sp"></div>
@@ -1612,11 +1615,15 @@ async function pagePengawas() {
       <button class="btn" id="addPengawas">+ Tambah</button>
     </div>
     ${rows.length ? `<div class="tw"><table><thead><tr>
-      <th>No</th><th>Nama</th><th>NIP</th><th>Jenjang</th><th>Wilayah</th><th>Status</th>
+      <th>No</th><th>Nama</th><th>NUPTK</th><th>NIP</th><th>Status Keaktifan</th><th>Jabatan</th>
     </tr></thead><tbody>
     ${rows.map((r,i) => `<tr>
-      <td>${i+1}</td><td>${esc(r.nama||'–')}</td><td>${esc(r.nip||'–')}</td>
-      <td>${esc(r.jenjang||'–')}</td><td>${esc(r.wilayah||'–')}</td><td>${esc(r.status||'–')}</td>
+      <td>${i+1}</td>
+      <td>${esc(r.nama||'–')}</td>
+      <td>${esc(r.nuptk||'–')}</td>
+      <td>${esc(r.nip||'–')}</td>
+      <td><select data-id="${esc(r.id)}" class="st-pengawas">${statusOpt(r.status||'Aktif')}</select></td>
+      <td>${esc(r.jabatan||'–')}</td>
     </tr>`).join('')}
     </tbody></table></div>` : '<div class="empty">Belum ada data pengawas. Gunakan Impor Excel.</div>'}
   </div>`;
@@ -1624,6 +1631,12 @@ async function pagePengawas() {
   addSearchPrint('#view', '#view table');
   $('#impPengawas').onclick = () => openImportPengawas();
   $('#addPengawas').onclick = () => openFormPengawas();
+  document.querySelectorAll('.st-pengawas').forEach(sel => {
+    sel.onchange = async () => {
+      await api('updatePengawasStatus', { id: sel.dataset.id, status: sel.value });
+      toast('Status diperbarui', 'ok');
+    };
+  });
 }
 
 async function pageEntity(id) {
