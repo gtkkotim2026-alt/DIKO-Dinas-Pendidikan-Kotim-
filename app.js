@@ -307,7 +307,8 @@ function init(r) {
       <div class="brand-logo">D</div>
       <div class="brand-text">
         <div class="brand-name">DIKO</div>
-        <div class="brand-sub">Sistem Informasi Terintegrasi</div>
+        <div class="brand-sub" style="font-size:9.5px;line-height:1.35;max-width:180px">Sistem Informasi Terintegrasi untuk Tata Kelola Guru dan Tenaga Kependidikan<br>Dinas Pendidikan Kabupaten Kotawaringin Timur</div>
+        <div style="font-size:9px;color:#a78bfa;margin-top:6px;font-weight:600">Versi 1.92.25</div>
       </div>
     </div>
     <div style="padding:12px 14px 16px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:10px">
