@@ -890,9 +890,13 @@ async function pageSK(id) {
             <iframe src="${url}" style="width:100%;height:420px;border:1px solid var(--bd);border-radius:8px"></iframe>
           `, async () => {
             const base64 = url.split(',')[1];
-            await api('uploadSKFile', { id: up.dataset.upload, file_name: f.name, file_base64: base64 });
-            toast('Dokumen SK berhasil diunggah', 'ok');
-            pageSK(id);
+            try {
+              await api('uploadSKFile', { id: up.dataset.upload, file_name: f.name, file_base64: base64 });
+              toast('Dokumen SK berhasil diunggah', 'ok');
+              pageSK(id);
+            } catch (err) {
+              toast('Gagal upload: ' + err.message + '. Pastikan Code.gs sudah di-deploy ulang (New version) dan file tidak terlalu besar.', 'er');
+            }
           }, { ok: 'Upload', cancel: 'Batal' });
         };
         reader.readAsDataURL(f);
@@ -915,11 +919,47 @@ async function pageSK(id) {
     const edit = e.target.closest('[data-edit]');
     if (edit) {
       const rec = skList.find(x => x.id === edit.dataset.edit);
-      if (rec) openSKForm(id, null, rec);
+      if (rec) openEditSK(id, rec);
     }
   };
 }
 
+
+
+function openEditSK(jenis, rec) {
+  const isPlt = jenis === 'sk_plt';
+  const html = `
+    <div class="fg">
+      <div class="full"><label>Nama PTK</label>
+        <input value="${esc(rec.nama || '')}" disabled style="background:#f1f5f9">
+      </div>
+      <div><label>${isPlt ? 'Sekolah yang Dipimpin' : 'Sekolah Penugasan'}</label>
+        <select id="ed_sekolah">${S.refs.map(s => `<option value="${esc(s.npsn)}"${s.npsn===rec.sekolah_npsn?' selected':''}>${esc(s.nama)}</option>`).join('')}</select>
+      </div>
+      <div><label>Nomor SK</label><input id="ed_no" value="${esc(rec.no_sk||'')}" required></div>
+      <div><label>Tanggal SK</label><input id="ed_tgl" type="date" value="${esc((rec.tgl_sk||'').toString().slice(0,10))}" required></div>
+      <div><label>TMT</label><input id="ed_tmt" type="date" value="${esc((rec.tmt||'').toString().slice(0,10))}" required></div>
+      <div class="full"><label>Pejabat yang Menetapkan</label><input id="ed_pejabat" value="${esc(rec.pejabat||'')}" required></div>
+      <div class="full"><label>Keterangan</label><textarea id="ed_ket" rows="2">${esc(rec.keterangan||'')}</textarea></div>
+    </div>
+    <p class="mu">Nama PTK tidak dapat diubah. Hanya informasi SK yang bisa dikoreksi.</p>`;
+
+  modal('Ubah Data SK', html, async (m) => {
+    const data = {
+      id: rec.id,
+      jenis: jenis,
+      no_sk: $('#ed_no', m).value,
+      tgl_sk: $('#ed_tgl', m).value,
+      tmt: $('#ed_tmt', m).value,
+      pejabat: $('#ed_pejabat', m).value,
+      sekolah: $('#ed_sekolah', m).value,
+      keterangan: $('#ed_ket', m).value
+    };
+    await api('updateSK', data);
+    toast('Data SK berhasil diubah', 'ok');
+    pageSK(jenis);
+  }, { ok: 'Simpan Perubahan' });
+}
 
 function makeSearchableSelect(selectEl, placeholder) {
   if (!selectEl || selectEl.dataset.searchable) return;
