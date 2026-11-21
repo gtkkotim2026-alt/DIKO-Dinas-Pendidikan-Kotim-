@@ -1360,9 +1360,27 @@ function showColumnMatch(file, targets, onConfirm) {
   const reader = new FileReader();
   reader.onload = e => {
     const wb = XLSX.read(e.target.result);
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-    let hIdx = rows.findIndex(r => r.filter(c => String(c||'').trim()).length >= 3);
+    const sheetNames = wb.SheetNames;
+    const pickHtml = `<div><label>Pilih Sheet</label>
+      <select id="sheetPick" style="width:100%;margin:8px 0">${sheetNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}</select>
+      <p class="mu">Pilih sheet yang berisi data, lalu lanjutkan pencocokan kolom.</p></div>`;
+    modal('Pilih Sheet', pickHtml, () => {
+      const chosen = $('#sheetPick').value;
+      const sheet = wb.Sheets[chosen];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+      processSheet(rows, targets, onConfirm);
+    }, { ok: 'Lanjut' });
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+
+function processSheet(rows, targets, onConfirm) {
+    let hIdx = rows.findIndex(r => {
+      const cells = r.map(c => String(c||'').toUpperCase());
+      return cells.some(c => c.includes('NAMA')) && cells.filter(c => c.trim()).length >= 4;
+    });
+    if (hIdx < 0) hIdx = rows.findIndex(r => r.filter(c => String(c||'').trim()).length >= 4);
     if (hIdx < 0) hIdx = 0;
     const headers = rows[hIdx].map((h,i) => String(h||'').trim() || ('Kolom ' + (i+1)));
     const html = `<div class="tw" style="max-height:320px"><table><thead><tr><th>Kolom Aplikasi</th><th>Kolom di Excel</th></tr></thead><tbody>
@@ -1371,25 +1389,25 @@ function showColumnMatch(file, targets, onConfirm) {
     <p class="mu">Pilih kolom Excel yang sesuai dengan data aplikasi.</p>`;
     modal('Pencocokan Kolom', html, () => {
       const map = {};
-      document.querySelectorAll('#modal select[data-k]').forEach(s => { if (s.value !== '-1') map[s.dataset.k] = +s.value; });
+      document.querySelectorAll('select[data-k]').forEach(s => { if (s.value !== '-1') map[s.dataset.k] = parseInt(s.value, 10); });
       const data = [];
       for (let i = hIdx + 1; i < rows.length; i++) {
         const row = rows[i];
+        if (!row || !row.length) continue;
         const obj = {};
-        let has = false;
         targets.forEach(t => {
-          if (map[t.k] != null) {
-            obj[t.k] = row[map[t.k]] != null ? String(row[map[t.k]]).trim() : '';
-            if (obj[t.k]) has = true;
+          if (map[t.k] != null && map[t.k] >= 0) {
+            const val = row[map[t.k]];
+            obj[t.k] = val != null ? String(val).trim() : '';
           }
         });
-        if (has && (obj.nama || obj.nama_pengawas || obj.npsn)) data.push(obj);
+        if (obj.nama && obj.nama.length > 2) data.push(obj);
+        else if (obj.nama_pengawas && obj.nama_pengawas.length > 2) data.push(obj);
+        else if (obj.npsn) data.push(obj);
       }
-      if (!data.length) throw new Error('Tidak ada data yang terbaca setelah pencocokan');
+      if (!data.length) throw new Error('Tidak ada data yang terbaca. Pastikan kolom Nama sudah dicocokkan.');
       onConfirm(data);
     }, { ok: 'Impor Data' });
-  };
-  reader.readAsArrayBuffer(file);
 }
 
 function openImportPeriode() {
