@@ -41,10 +41,12 @@ const MENU = [
     { id: 'periode_kepsek', t: 'Periode Kepala Sekolah', ico: '📅' }
   ]},
   { g: 'Manajemen Pengawas', items: [
-    { id: 'pengawas', t: 'Data Pengawas Sekolah', ico: '👨‍🏫' }
+    { id: 'pengawas', t: 'Data Pengawas Sekolah', ico: '👨‍🏫' },
+    { id: 'wilayah_binaan', t: 'Wilayah Binaan Pengawas', ico: '🗺️' }
   ]},
   { g: 'Administrasi', items: [
     { id: 'pendaftaran', t: 'Pendaftaran Sekolah', ico: '📄' },
+    { id: 'penandatangan', t: 'Penandatangan Dokumen', ico: '✍️' },
     { id: 'users', t: 'Pengguna', ico: '👤' }
   ]},
   { id: 'portal_guru', t: 'Portal Guru', ico: '📱' }
@@ -72,8 +74,20 @@ function setBusy(n) {
   const ld = $('#loader');
   if (ld) ld.classList.toggle('show', busy > 0);
 }
-async function api(action, payload = {}) {
+const _cache = new Map();
+const CACHE_TTL = 90000; // 90 detik
+
+async function api(action, payload = {}, skipCache = false) {
   if (!CFG.API_URL || CFG.API_URL.indexOf('GANTI') >= 0) throw new Error('API_URL belum diisi di config.js');
+
+  // Cache hanya untuk aksi list yang aman
+  const cacheable = !skipCache && (action === 'list' || action === 'listSK' || action === 'refs');
+  const key = cacheable ? action + ':' + JSON.stringify(payload) : null;
+  if (key && _cache.has(key)) {
+    const c = _cache.get(key);
+    if (Date.now() - c.t < CACHE_TTL) return c.data;
+  }
+
   setBusy(1);
   try {
     let res;
@@ -82,9 +96,12 @@ async function api(action, payload = {}) {
     } catch (e) { throw new Error('Tidak dapat terhubung ke server. Periksa koneksi & URL Web App.'); }
     const j = await res.json();
     if (!j.ok) { if (j.expired) doLogout(true); throw new Error(j.error || 'Terjadi kesalahan'); }
+    if (key) _cache.set(key, { t: Date.now(), data: j });
     return j;
   } finally { setBusy(-1); }
 }
+
+function clearCache() { _cache.clear(); }
 const fmtDate = v => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : v; };
 const refName = npsn => { const s = S.refs.find(x => x.npsn === npsn); return s ? s.nama : (npsn || ''); };
 function bcls(v) {
@@ -354,7 +371,7 @@ async function route() {
     if (id === 'dashboard') await pageDash();
     else if (id === 'portal_guru') await pagePortalGuru();
     else if (id === 'lokasi') await pageLokasi();
-    else if (id === 'kebutuhan') await pageKebutuhan(); else if (id === 'statistik_user') await pageStatistikUser(); else if (id === 'periode_kepsek') await pagePeriodeKepsek(); else if (id === 'pengawas') await pagePengawas();
+    else if (id === 'kebutuhan') await pageKebutuhan(); else if (id === 'statistik_user') await pageStatistikUser(); else if (id === 'periode_kepsek') await pagePeriodeKepsek(); else if (id === 'pengawas') await pagePengawas(); else if (id === 'penandatangan') await pagePenandatangan(); else if (id === 'wilayah_binaan') await pageWilayahBinaan();
     else if (id.startsWith('sk_')) await pageSK(id);
     else await pageEntity(id);
   }
@@ -846,6 +863,7 @@ async function pageSK(id) {
   const html = `<div class="card">
     <div class="tools">
       <div class="sp"></div>
+      <button class="btn sec" id="cetakSK">Cetak Laporan</button>
       <button class="btn" id="addSK">+ Input SK Baru</button>
     </div>
     ${skList.length ? `<div class="tw"><table><thead><tr>
@@ -871,6 +889,7 @@ async function pageSK(id) {
   $('#view').innerHTML = html;
 
   $('#addSK').onclick = () => openSKForm(id, null);
+  $('#cetakSK').onclick = () => cetakLaporanSK(id, skList);
   $('#view').onclick = async e => {
     const up = e.target.closest('[data-upload]');
     const del = e.target.closest('[data-del]');
@@ -905,7 +924,7 @@ async function pageSK(id) {
     }
     if (del && confirm('Hapus data SK ini?')) {
       await api('deleteSK', { id: del.dataset.del, jenis: id });
-      toast('Data dihapus', 'ok');
+      clearCache(); toast('Data dihapus', 'ok');
       pageSK(id);
     }
     if (view) {
@@ -1180,10 +1199,10 @@ function openSKForm(jenis, guru, editRec) {
         const one = Object.assign({}, data, { ptk_id: el.dataset.id, sekolah: el.dataset.sekolah });
         await api('saveSK', one);
       }
-      toast(ptkItems.length + ' data SK berhasil disimpan', 'ok');
+      clearCache(); toast(ptkItems.length + ' data SK berhasil disimpan', 'ok');
     } else {
       await api('saveSK', data);
-      toast('SK berhasil disimpan', 'ok');
+      clearCache(); toast('SK berhasil disimpan', 'ok');
     }
     pageSK(jenis);
   }, { ok: 'Simpan' });
@@ -1207,12 +1226,12 @@ function openSKForm(jenis, guru, editRec) {
 
   // Isi dropdown PTK
   setTimeout(() => {
-    const sel = $('#sk_ptk', m) || $('#sk_ptk_add', m);
+    const sel = document.getElementById('sk_ptk_add') || document.getElementById('sk_ptk');
     if (sel) {
       api('list', { entity: 'guru' }).then(r => {
-        sel.innerHTML = '<option value="">— pilih PTK —</option>' + r.rows.map(g => `<option value="${esc(g.id)}">${esc(g.nama)} (${esc(g.nip||'–')})</option>`).join('');
-        makeSearchableSelect(sel, 'Ketik nama atau NIP…');
-      });
+        sel.innerHTML = '<option value="">— pilih PTK —</option>' + (r.rows||[]).map(g => `<option value="${esc(g.id)}">${esc(g.nama)} (${esc(g.nip||'–')})</option>`).join('');
+        if (!sel.dataset.searchable) makeSearchableSelect(sel, 'Ketik nama atau NIP…');
+      }).catch(() => {});
     }
     const addBtn = $('#addPtk', m);
     if (addBtn) {
@@ -1242,7 +1261,118 @@ function openSKForm(jenis, guru, editRec) {
       const el = $('#' + id, m);
       if (el) makeSearchableSelect(el, 'Ketik nama sekolah…');
     });
-  }, 50);
+  }, 150);
+}
+
+
+async function pagePenandatangan() {
+  $('#ttl').textContent = 'Penandatangan Dokumen';
+  $('#view').innerHTML = '<div class="card mu">Memuat…</div>';
+  let data = {};
+  try { data = (await api('getPenandatangan')).data || {}; } catch(e) {}
+  $('#view').innerHTML = `<div class="card" style="max-width:520px">
+    <h3>Data Kepala Dinas</h3>
+    <div class="fg">
+      <div class="full"><label>Nama</label><input id="pt_nama" value="${esc(data.nama||'')}" required></div>
+      <div><label>NIP</label><input id="pt_nip" value="${esc(data.nip||'')}" required></div>
+      <div><label>Pangkat / Golongan</label><input id="pt_pangkat" value="${esc(data.pangkat||'')}" required></div>
+    </div>
+    <div style="margin-top:12px"><button class="btn" id="savePT">Simpan</button></div>
+  </div>`;
+  $('#savePT').onclick = async () => {
+    await api('savePenandatangan', {
+      nama: $('#pt_nama').value,
+      nip: $('#pt_nip').value,
+      pangkat: $('#pt_pangkat').value
+    });
+    toast('Data penandatangan tersimpan', 'ok');
+  };
+}
+
+function cetakLaporanSK(jenis, list) {
+  const html = `<div class="fg">
+    <div><label>Dari Tanggal SK</label><input id="f_dari" type="date"></div>
+    <div><label>Sampai Tanggal SK</label><input id="f_sampai" type="date"></div>
+    <div><label>Dari TMT</label><input id="t_dari" type="date"></div>
+    <div><label>Sampai TMT</label><input id="t_sampai" type="date"></div>
+  </div>
+  <p class="mu">Kosongkan filter jika ingin mencetak semua data.</p>`;
+  modal('Cetak Laporan SK', html, () => {
+    const dari = $('#f_dari').value, sampai = $('#f_sampai').value;
+    const tdari = $('#t_dari').value, tsampai = $('#t_sampai').value;
+    let filtered = list.filter(r => {
+      const tgl = (r.tgl_sk||'').toString().slice(0,10);
+      const tmt = (r.tmt||'').toString().slice(0,10);
+      if (dari && tgl < dari) return false;
+      if (sampai && tgl > sampai) return false;
+      if (tdari && tmt < tdari) return false;
+      if (tsampai && tmt > tsampai) return false;
+      return true;
+    });
+    const title = document.getElementById('ttl').textContent;
+    const win = window.open('', '_blank');
+    win.document.write(`<html><head><title>Laporan ${title}</title>
+      <style>body{font-family:Arial;font-size:12px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px;text-align:left}th{background:#f1f5f9}</style>
+      </head><body><h2>${title}</h2><p>Dicetak: ${new Date().toLocaleDateString('id-ID')}</p>
+      <table><thead><tr><th>No</th><th>Nama</th><th>Sekolah</th><th>Nomor SK</th><th>Tanggal SK</th><th>TMT</th></tr></thead><tbody>
+      ${filtered.map((r,i)=>`<tr><td>${i+1}</td><td>${r.nama||''}</td><td>${r.sekolah||''}</td><td>${r.no_sk||''}</td><td>${(r.tgl_sk||'').toString().slice(0,10)}</td><td>${(r.tmt||'').toString().slice(0,10)}</td></tr>`).join('')}
+      </tbody></table></body></html>`);
+    win.document.close();
+    win.print();
+  }, { ok: 'Cetak' });
+}
+
+
+function openImportPeriode() {
+  const html = `<div>
+    <p class="mu">Unggah file Excel sesuai format Rekap TMT Kepala Sekolah (kolom: NAMA, NIP, ASAL SEKOLAH, TMT SK, PERIODE 1-4, LINK SK, KETERANGAN).</p>
+    <input type="file" id="impFile" accept=".xlsx,.xls">
+    <div id="impPreview" style="margin-top:10px"></div>
+  </div>`;
+  modal('Impor Periode Kepala Sekolah', html, async () => {
+    const f = $('#impFile').files[0];
+    if (!f) throw new Error('Pilih file Excel');
+    const data = await f.arrayBuffer();
+    const wb = XLSX.read(data);
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    // Cari baris header
+    let headerIdx = rows.findIndex(r => r.some(c => String(c).toUpperCase().includes('NAMA') && String(c).toUpperCase().includes('NIP') === false));
+    if (headerIdx < 0) headerIdx = 4;
+    const headers = rows[headerIdx].map(h => String(h||'').trim().toUpperCase());
+    const get = (row, keys) => {
+      for (const k of keys) {
+        const i = headers.findIndex(h => h.includes(k));
+        if (i >= 0) return row[i] || '';
+      }
+      return '';
+    };
+    const imported = [];
+    for (let i = headerIdx + 1; i < rows.length; i++) {
+      const row = rows[i];
+      const nama = get(row, ['NAMA']);
+      if (!nama || nama.length < 3) continue;
+      imported.push({
+        nama: nama,
+        nip: get(row, ['NIP']),
+        jabatan: get(row, ['JABATAN']),
+        no_hp: get(row, ['HP', 'WA', 'NO.']),
+        sekolah: get(row, ['ASAL SEKOLAH', 'SEKOLAH']),
+        kecamatan: get(row, ['KECAMATAN']),
+        tmt: get(row, ['TMT']),
+        keterangan: get(row, ['KETERANGAN']),
+        link_sk: get(row, ['LINK']),
+        periode1: get(row, ['PERIODE 1']),
+        periode2: get(row, ['PERIODE 2']),
+        periode3: get(row, ['PERIODE 3']),
+        periode4: get(row, ['PERIODE 4'])
+      });
+    }
+    if (!imported.length) throw new Error('Tidak ada data yang terbaca');
+    await api('importPeriode', { rows: imported });
+    toast(imported.length + ' data berhasil diimpor', 'ok');
+    pagePeriodeKepsek();
+  }, { ok: 'Impor' });
 }
 
 async function pagePeriodeKepsek() {
@@ -1283,8 +1413,102 @@ async function pagePeriodeKepsek() {
     </tbody></table></div>` : '<div class="empty">Belum ada data. Gunakan Impor Excel atau Tambah.</div>'}
   </div>`;
   $('#view').innerHTML = html;
-  $('#impPeriode').onclick = () => toast('Fitur impor Excel untuk Periode Kepala Sekolah siap dihubungkan ke backend.', 'ok');
+  $('#impPeriode').onclick = () => openImportPeriode();
   $('#addPeriode').onclick = () => toast('Form tambah periode akan ditambahkan.', 'ok');
+}
+
+
+function openImportPengawas() {
+  const html = `<p class="mu">Unggah file Excel Data Pengawas (kolom: NAMA, NIP, NUPTK, STATUS, JABATAN).</p>
+    <input type="file" id="impFile" accept=".xlsx,.xls">`;
+  modal('Impor Data Pengawas', html, async () => {
+    const f = $('#impFile').files[0];
+    if (!f) throw new Error('Pilih file');
+    const wb = XLSX.read(await f.arrayBuffer());
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+    const hIdx = rows.findIndex(r => r.some(c => String(c).toUpperCase().includes('NAMA')));
+    const headers = (rows[hIdx]||[]).map(h => String(h||'').toUpperCase());
+    const get = (row, k) => { const i = headers.findIndex(h => h.includes(k)); return i>=0 ? row[i] : ''; };
+    const data = [];
+    for (let i = hIdx+1; i < rows.length; i++) {
+      const nama = get(rows[i], 'NAMA');
+      if (!nama || nama.length < 3) continue;
+      data.push({ nama, nip: get(rows[i],'NIP'), nuptk: get(rows[i],'NUPTK'), status: get(rows[i],'STATUS')||'Aktif', jabatan: get(rows[i],'JABATAN') });
+    }
+    if (!data.length) throw new Error('Tidak ada data');
+    await api('importPengawas', { rows: data });
+    toast(data.length + ' pengawas diimpor', 'ok');
+    pagePengawas();
+  }, { ok: 'Impor' });
+}
+
+function openFormPengawas() {
+  const html = `<div class="fg">
+    <div class="full"><label>Nama</label><input id="p_nama" required></div>
+    <div><label>NIP</label><input id="p_nip"></div>
+    <div><label>NUPTK</label><input id="p_nuptk"></div>
+    <div><label>Jabatan</label><input id="p_jabatan"></div>
+    <div><label>Status</label><select id="p_status"><option>Aktif</option><option>Tidak Aktif</option></select></div>
+  </div>`;
+  modal('Tambah Pengawas', html, async () => {
+    await api('savePengawas', { nama: $('#p_nama').value, nip: $('#p_nip').value, nuptk: $('#p_nuptk').value, jabatan: $('#p_jabatan').value, status: $('#p_status').value });
+    toast('Pengawas ditambahkan', 'ok');
+    pagePengawas();
+  });
+}
+
+async function pageWilayahBinaan() {
+  $('#ttl').textContent = 'Wilayah Binaan Pengawas';
+  $('#view').innerHTML = '<div class="card mu">Memuat…</div>';
+  let rows = [];
+  try { rows = (await api('listWilayah')).rows || []; } catch(e) {}
+  $('#view').innerHTML = `<div class="card">
+    <div class="tools"><div class="sp"></div>
+      <button class="btn sec" id="impWilayah">Impor Excel</button>
+    </div>
+    ${rows.length ? `<div class="tw" style="overflow-x:auto"><table><thead><tr>
+      <th>No</th><th>Nama Pengawas</th><th>NIP</th><th>NPSN</th><th>Nama Sekolah</th><th>Jenjang</th><th>Kecamatan</th>
+    </tr></thead><tbody>
+    ${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.nama_pengawas||'')}</td><td>${esc(r.nip||'')}</td><td>${esc(r.npsn||'')}</td><td>${esc(r.nama_sekolah||'')}</td><td>${esc(r.jenjang||'')}</td><td>${esc(r.kecamatan||'')}</td></tr>`).join('')}
+    </tbody></table></div>` : '<div class="empty">Belum ada data. Gunakan Impor Excel.</div>'}
+  </div>`;
+  $('#impWilayah').onclick = openImportWilayah;
+}
+
+function openImportWilayah() {
+  const html = `<p class="mu">Unggah file Lampiran SK Pengawas (format dengan kolom Nama Pengawas, NPSN, Nama Sekolah, Kecamatan).</p>
+    <input type="file" id="impFile" accept=".xlsx,.xls">`;
+  modal('Impor Wilayah Binaan', html, async () => {
+    const f = $('#impFile').files[0];
+    if (!f) throw new Error('Pilih file');
+    const wb = XLSX.read(await f.arrayBuffer());
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+    const data = [];
+    let currentNama = '', currentNip = '';
+    for (const row of rows) {
+      const col1 = String(row[1]||'').trim();
+      const npsn = String(row[3]||'').trim();
+      if (col1 && col1.length > 5 && !col1.match(/^\d/) && !npsn) {
+        currentNama = col1.split('\n')[0];
+        const nipMatch = col1.match(/\d{18}/) || String(row[1]||'').match(/\d{18}/);
+        if (nipMatch) currentNip = nipMatch[0];
+      }
+      if (npsn && npsn.match(/^\d{8}/)) {
+        data.push({
+          nama_pengawas: currentNama,
+          nip: currentNip,
+          npsn: npsn,
+          nama_sekolah: String(row[4]||''),
+          jenjang: String(row[5]||''),
+          kecamatan: String(row[6]||'').replace('Kec. ','')
+        });
+      }
+    }
+    if (!data.length) throw new Error('Tidak ada data sekolah yang terbaca');
+    await api('importWilayah', { rows: data });
+    toast(data.length + ' data wilayah binaan diimpor', 'ok');
+    pageWilayahBinaan();
+  }, { ok: 'Impor' });
 }
 
 async function pagePengawas() {
@@ -1308,8 +1532,8 @@ async function pagePengawas() {
     </tbody></table></div>` : '<div class="empty">Belum ada data pengawas. Gunakan Impor Excel.</div>'}
   </div>`;
   $('#view').innerHTML = html;
-  $('#impPengawas').onclick = () => toast('Fitur impor Excel untuk Pengawas siap dihubungkan.', 'ok');
-  $('#addPengawas').onclick = () => toast('Form tambah pengawas akan ditambahkan.', 'ok');
+  $('#impPengawas').onclick = () => openImportPengawas();
+  $('#addPengawas').onclick = () => openFormPengawas();
 }
 
 async function pageEntity(id) {
@@ -1483,7 +1707,7 @@ async function onTblClick(e) {
     if (a === 'pernyataan') return cetakPernyataan(rec);
     if (a === 'pelimpahan') return cetakPelimpahan(rec);
     if (a === 'edit') return openForm(rec);
-    if (a === 'del') { if (confirm('Hapus data ini? Tindakan tidak dapat dibatalkan.')) { await api('remove', { entity: V.id, id: rec.id }); toast('Data dihapus', 'ok'); await V.reload(); } return; }
+    if (a === 'del') { if (confirm('Hapus data ini? Tindakan tidak dapat dibatalkan.')) { await api('remove', { entity: V.id, id: rec.id }); clearCache(); toast('Data dihapus', 'ok'); await V.reload(); } return; }
     if (a === 'ok') { if (confirm('Setujui pendaftaran ' + rec.nama + '? Data sekolah, kepala sekolah, dan akun login akan dibuat.')) { await api('approve', { id: rec.id }); toast('Pendaftaran disetujui', 'ok'); S.refs = (await api('refs')).refs; await V.reload(); } return; }
     if (a === 'no') { const c = prompt('Alasan penolakan (akan terlihat oleh pendaftar):'); if (c === null) return; await api('reject', { id: rec.id, catatan: c }); toast('Pendaftaran ditolak'); await V.reload(); }
   } catch (er) { toast(er.message, 'er'); }
@@ -1509,7 +1733,7 @@ function openForm(rec) {
     flds.forEach(f => data[f.k] = $('#f_' + f.k, mm).value);
     if (sek && ent.scope && isNew) data[ent.scope] = S.user.npsn;
     await api('save', { entity: V.id, data });
-    toast('Data tersimpan', 'ok');
+    clearCache(); toast('Data tersimpan', 'ok');
     if (V.id === 'sekolah') S.refs = (await api('refs')).refs;
     await V.reload();
   });
