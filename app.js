@@ -1091,17 +1091,17 @@ function openSKForm(jenis, guru, editRec) {
     const isPlt = jenis === 'sk_plt';
     fields = `
       <div class="fg">
-        <div class="full"><label>Daftar Nama PTK (bisa banyak)</label>
-          <div id="ptkList" style="border:1px solid var(--bd);border-radius:8px;padding:8px;min-height:40px;margin-bottom:8px"></div>
-          <div style="display:flex;gap:8px;margin-bottom:12px">
+        <div><label>Nama PTK</label>
+          <div style="display:flex;gap:6px">
             <select id="sk_ptk_add" style="flex:1"></select>
             <button type="button" class="btn sm" id="addPtk">+ Tambah</button>
           </div>
-          <div id="ptkSummary" class="tw" style="max-height:200px;overflow:auto;display:none">
-            <table><thead><tr><th>No</th><th>Nama PTK</th><th>Sekolah yang Dipimpin</th></tr></thead><tbody id="ptkSummaryBody"></tbody></table>
-          </div>
         </div>
         <div><label>${isPlt ? 'Sekolah yang Dipimpin sebagai Plt.' : 'Sekolah Penugasan'}</label><select id="sk_sekolah" required>${S.refs.map(s => `<option value="${esc(s.npsn)}">${esc(s.nama)}</option>`).join('')}</select></div>
+        <div class="full" id="ptkList" style="border:1px solid var(--bd);border-radius:8px;padding:8px;min-height:36px;margin-top:4px"></div>
+        <div class="full" id="ptkSummary" class="tw" style="max-height:180px;overflow:auto;display:none;margin-top:6px">
+          <table><thead><tr><th>No</th><th>Nama PTK</th><th>Sekolah</th></tr></thead><tbody id="ptkSummaryBody"></tbody></table>
+        </div>
         ${isPlt ? `<div><label>Status Kepala Sekolah Definitif</label><select id="sk_status" required>
           <option>Jabatan kosong</option>
           <option>Pejabat definitif sedang berhalangan</option>
@@ -1115,7 +1115,8 @@ function openSKForm(jenis, guru, editRec) {
         <div><label>Nomor SK</label><input id="sk_no" required></div>
         <div><label>Tanggal SK</label><input id="sk_tgl" type="date" required></div>
         <div><label>TMT</label><input id="sk_tmt" type="date" required></div>
-        ${!isPlt ? '<div><label>Masa Penugasan Mulai</label><input id="sk_mulai" type="date"></div><div><label>Masa Penugasan Berakhir</label><input id="sk_akhir" type="date"></div>' : '<div><label>Tanggal Berakhir Plt.</label><input id="sk_akhir" type="date"></div>'}
+        ${isPlt ? '<div><label>Tanggal Berakhir Plt.</label><input id="sk_akhir" type="date"></div>' : ''}
+        ${isPlt ? '<div class="full"><label>Upload Dokumen SK (PDF)</label><input id="sk_file" type="file" accept=".pdf" required></div>' : ''}
         <div class="full"><label>Pejabat yang Menetapkan</label><input id="sk_pejabat" required></div>
         <p class="mu full">Dokumen SK diunggah nanti di daftar setelah data tersimpan.</p>
       </div>`;
@@ -1123,8 +1124,9 @@ function openSKForm(jenis, guru, editRec) {
 
   const m = modal(titles[jenis] || 'Input SK', fields + '<p class="mu" style="margin-top:8px">Untuk SK Definitif & Plt, dokumen diunggah di daftar setelah disimpan.</p>', async (modalEl) => {
     const isMulti = jenis === 'sk_definitif' || jenis === 'sk_plt';
+    const isPlt = jenis === 'sk_plt';
     let file = null, base64 = '';
-    if (!isMulti) {
+    if (!isMulti || isPlt) {
       const fileInput = $('#sk_file', modalEl);
       file = fileInput && fileInput.files[0];
       if (!file) throw new Error('File SK wajib diunggah');
