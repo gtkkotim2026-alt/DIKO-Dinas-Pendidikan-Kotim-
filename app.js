@@ -952,10 +952,13 @@ function openSKForm(jenis, guru) {
     fields = `
       <div class="fg">
         <div class="full"><label>Daftar Nama PTK (bisa banyak)</label>
-          <div id="ptkList" style="border:1px solid var(--bd);border-radius:8px;padding:8px;min-height:60px;margin-bottom:8px"></div>
-          <div style="display:flex;gap:8px">
+          <div id="ptkList" style="border:1px solid var(--bd);border-radius:8px;padding:8px;min-height:40px;margin-bottom:8px"></div>
+          <div style="display:flex;gap:8px;margin-bottom:12px">
             <select id="sk_ptk_add" style="flex:1"></select>
             <button type="button" class="btn sm" id="addPtk">+ Tambah</button>
+          </div>
+          <div id="ptkSummary" class="tw" style="max-height:200px;overflow:auto;display:none">
+            <table><thead><tr><th>No</th><th>Nama PTK</th><th>Sekolah yang Dipimpin</th></tr></thead><tbody id="ptkSummaryBody"></tbody></table>
           </div>
         </div>
         <div><label>${isPlt ? 'Sekolah yang Dipimpin sebagai Plt.' : 'Sekolah Penugasan'}</label><select id="sk_sekolah" required>${S.refs.map(s => `<option value="${esc(s.npsn)}">${esc(s.nama)}</option>`).join('')}</select></div>
@@ -995,9 +998,10 @@ function openSKForm(jenis, guru) {
       });
     }
 
+    const ptkEl = $('#sk_ptk', modalEl) || $('#sk_ptk_add', modalEl);
     const data = {
       jenis: jenis,
-      ptk_id: $('#sk_ptk', modalEl).value,
+      ptk_id: ptkEl ? ptkEl.value : '',
       no_sk: $('#sk_no', modalEl).value,
       tgl_sk: $('#sk_tgl', modalEl).value,
       tmt: $('#sk_tmt', modalEl).value,
@@ -1048,15 +1052,27 @@ function openSKForm(jenis, guru) {
     }
     const addBtn = $('#addPtk', m);
     if (addBtn) {
+      const updateSummary = () => {
+        const items = [...$('#ptkList', m).querySelectorAll('.ptk-item')];
+        const body = $('#ptkSummaryBody', m);
+        const sekolah = $('#sk_sekolah', m);
+        const sekolahNama = sekolah && sekolah.options[sekolah.selectedIndex] ? sekolah.options[sekolah.selectedIndex].text : '–';
+        if (!items.length) { $('#ptkSummary', m).style.display = 'none'; return; }
+        $('#ptkSummary', m).style.display = '';
+        body.innerHTML = items.map((el, i) => `<tr><td>${i+1}</td><td>${esc(el.textContent.replace('×','').trim())}</td><td>${esc(sekolahNama)}</td></tr>`).join('');
+      };
       addBtn.onclick = () => {
         const s = $('#sk_ptk_add', m);
         if (!s.value) return;
         const list = $('#ptkList', m);
         if (list.querySelector(`[data-id="${s.value}"]`)) return toast('Nama sudah ditambahkan', 'wr');
         const opt = s.options[s.selectedIndex];
-        list.insertAdjacentHTML('beforeend', `<span class="ptk-item badge" data-id="${s.value}" style="margin:2px;display:inline-flex;align-items:center;gap:4px">${esc(opt.text)} <button type="button" style="border:0;background:none;cursor:pointer" onclick="this.parentElement.remove()">×</button></span>`);
+        list.insertAdjacentHTML('beforeend', `<span class="ptk-item badge" data-id="${s.value}" style="margin:2px;display:inline-flex;align-items:center;gap:4px">${esc(opt.text)} <button type="button" style="border:0;background:none;cursor:pointer" onclick="this.parentElement.remove();updateSummary()">×</button></span>`);
         s.value = '';
+        updateSummary();
       };
+      const sekolahSel = $('#sk_sekolah', m);
+      if (sekolahSel) sekolahSel.onchange = updateSummary;
     }
   }, 50);
 }
