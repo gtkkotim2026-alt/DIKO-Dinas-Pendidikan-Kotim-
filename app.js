@@ -350,6 +350,8 @@ function init(r) {
     if (role === 'pimpinan') return ['dashboard','statistik_user','pegawai','sekolah','guru','kepsek','lokasi','rombel','kebutuhan','mutasi','mediasi','disiplin'].includes(id);
     // superadmin & admin_dinas
     if (id.startsWith('sk_')) return true;
+    const custom = ['penandatangan','periode_kepsek','pengawas','wilayah_binaan','pendaftaran','users'];
+    if (custom.includes(id)) return true;
     return id === 'dashboard' || id === 'statistik_user' || (id === 'lokasi' ? !!S.schema.sekolah : id === 'kebutuhan' ? !!S.schema.rombel : !!S.schema[id]);
   };
   const link = i => `<a href="#/${i.id}" data-id="${i.id}"><span class="nav-ico">${i.ico || '•'}</span><span class="nav-label">${esc(i.t)}</span></a>`;
