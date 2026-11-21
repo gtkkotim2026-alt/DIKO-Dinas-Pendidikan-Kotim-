@@ -859,7 +859,7 @@ async function pageSK(id) {
       <td>${esc(r.tmt || '–')}</td>
       <td><span class="badge ${r.file_name ? 'ok' : 'wr'}">${r.file_name ? 'Dokumen Ada' : 'Belum Upload'}</span></td>
       <td class="act">
-        <button class="btn sm" data-upload="${esc(r.id)}">Upload SK</button>
+        ${r.file_name ? '' : `<button class="btn sm" data-upload="${esc(r.id)}">Upload SK</button>`}
         ${r.file_name ? `<button class="btn sm sec" data-view="${esc(r.id)}">Lihat SK</button>` : ''}
         <button class="btn sm sec" data-edit="${esc(r.id)}">Ubah</button>
         <button class="btn sm dan" data-del="${esc(r.id)}">Hapus</button>
@@ -877,13 +877,24 @@ async function pageSK(id) {
     if (up) {
       const input = document.createElement('input');
       input.type = 'file'; input.accept = '.pdf';
-      input.onchange = async () => {
+      input.onchange = () => {
         const f = input.files[0];
-        if (!f || f.size > 1024*1024) return toast('File PDF maksimal 1 MB', 'er');
-        const base64 = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(f); });
-        await api('uploadSKFile', { id: up.dataset.upload, file_name: f.name, file_base64: base64 });
-        toast('Dokumen SK diunggah', 'ok');
-        pageSK(id);
+        if (!f) return;
+        if (f.size > 1024*1024) return toast('File PDF maksimal 1 MB', 'er');
+        const reader = new FileReader();
+        reader.onload = () => {
+          const url = reader.result;
+          const preview = modal('Preview Dokumen SK', `
+            <p><b>${esc(f.name)}</b> (${Math.round(f.size/1024)} KB)</p>
+            <iframe src="${url}" style="width:100%;height:420px;border:1px solid var(--bd);border-radius:8px"></iframe>
+          `, async () => {
+            const base64 = url.split(',')[1];
+            await api('uploadSKFile', { id: up.dataset.upload, file_name: f.name, file_base64: base64 });
+            toast('Dokumen SK berhasil diunggah', 'ok');
+            pageSK(id);
+          }, { ok: 'Upload', cancel: 'Batal' });
+        };
+        reader.readAsDataURL(f);
       };
       input.click();
     }
@@ -892,7 +903,10 @@ async function pageSK(id) {
       toast('Data dihapus', 'ok');
       pageSK(id);
     }
-    if (view) toast('Fitur lihat SK akan menampilkan file PDF', 'ok');
+    if (view) {
+      toast('Membuka dokumen…', 'ok');
+      // In real use, call API to get base64 and open in new tab
+    }
   };
 }
 
