@@ -11,26 +11,43 @@ const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&a
 const ROLE = { superadmin: 'Super Admin', admin_dinas: 'Admin Dinas', pimpinan: 'Pimpinan', guru: 'Guru', sekolah: 'Sekolah' };
 const COL = { TK: '#f79009', SD: '#1b5fc4', SMP: '#12805c' };
 const MENU = [
-  { id: 'dashboard', t: 'Dashboard', ico: '📊' },
-  { id: 'portal_guru', t: 'Portal Guru', ico: '📱' },
-  { id: 'pegawai', t: 'Pegawai Disdik', ico: '👥' },
+  { g: 'Utama', items: [
+    { id: 'dashboard', t: 'Dashboard', ico: '📊' },
+    { id: 'statistik_user', t: 'Statistik Pengguna', ico: '📈' }
+  ]},
+  { g: 'Data Kepegawaian', items: [
+    { id: 'pegawai', t: 'Pegawai Disdik', ico: '👥' },
+    { id: 'guru', t: 'Data Guru', ico: '👨‍🏫' },
+    { id: 'kepsek', t: 'Data Kepala Sekolah', ico: '👨‍💼' }
+  ]},
   { g: 'Satuan Pendidikan', items: [
-    { id: 'sekolah', t: 'Data Sekolah', ico: '🏫' }, { id: 'guru', t: 'Data Guru', ico: '👨‍🏫' }, { id: 'kepsek', t: 'Data Kepala Sekolah', ico: '👨‍💼' },
-    { id: 'lokasi', t: 'Lokasi Sekolah', ico: '📍' }, { id: 'rombel', t: 'Data Rombel', ico: '📚' }, { id: 'kebutuhan', t: 'Kebutuhan Guru', ico: '📋' }] },
-  { id: 'mutasi', t: 'Mutasi', ico: '🔄' },
-  { id: 'mediasi', t: 'Mediasi Perceraian', ico: '⚖️' },
-  { id: 'disiplin', t: 'Pembinaan Disiplin', ico: '📝' },
-  { g: 'Input SK', items: [
+    { id: 'sekolah', t: 'Data Sekolah', ico: '🏫' },
+    { id: 'lokasi', t: 'Lokasi Sekolah', ico: '📍' },
+    { id: 'rombel', t: 'Data Rombel', ico: '📚' },
+    { id: 'kebutuhan', t: 'Kebutuhan Guru', ico: '📋' }
+  ]},
+  { g: 'Layanan & Proses', items: [
+    { id: 'mutasi', t: 'Mutasi', ico: '🔄' },
+    { id: 'mediasi', t: 'Mediasi Perceraian', ico: '⚖️' },
+    { id: 'disiplin', t: 'Pembinaan Disiplin', ico: '📝' }
+  ]},
+  { g: 'Manajemen SK', items: [
     { id: 'sk_pemberhentian', t: 'SK Pemberhentian', ico: '📄' },
     { id: 'sk_mutasi', t: 'SK Mutasi', ico: '🔄' },
     { id: 'sk_definitif', t: 'SK Kepala Sekolah Definitif', ico: '🏆' },
     { id: 'sk_plt', t: 'SK Plt Kepala Sekolah', ico: '⭐' }
-  ] },
+  ]},
+  { g: 'Manajemen Kepala Sekolah', items: [
+    { id: 'periode_kepsek', t: 'Periode Kepala Sekolah', ico: '📅' }
+  ]},
+  { g: 'Manajemen Pengawas', items: [
+    { id: 'pengawas', t: 'Data Pengawas Sekolah', ico: '👨‍🏫' }
+  ]},
   { g: 'Administrasi', items: [
     { id: 'pendaftaran', t: 'Pendaftaran Sekolah', ico: '📄' },
-    { id: 'users', t: 'Pengguna', ico: '👤' },
-    { id: 'statistik_user', t: 'Statistik Pengguna', ico: '📈' }
-  ]}
+    { id: 'users', t: 'Pengguna', ico: '👤' }
+  ]},
+  { id: 'portal_guru', t: 'Portal Guru', ico: '📱' }
 ];
 const REG = [
   { k: 'npsn', l: 'NPSN (8 karakter)', r: 1 }, { k: 'nama', l: 'Nama Sekolah', r: 1 },
@@ -336,7 +353,7 @@ async function route() {
     if (id === 'dashboard') await pageDash();
     else if (id === 'portal_guru') await pagePortalGuru();
     else if (id === 'lokasi') await pageLokasi();
-    else if (id === 'kebutuhan') await pageKebutuhan(); else if (id === 'statistik_user') await pageStatistikUser();
+    else if (id === 'kebutuhan') await pageKebutuhan(); else if (id === 'statistik_user') await pageStatistikUser(); else if (id === 'periode_kepsek') await pagePeriodeKepsek(); else if (id === 'pengawas') await pagePengawas();
     else if (id.startsWith('sk_')) await pageSK(id);
     else await pageEntity(id);
   }
@@ -839,14 +856,32 @@ async function pageSK(id) {
       <td>${esc(r.no_sk || '–')}</td>
       <td>${esc(r.tgl_sk || '–')}</td>
       <td>${esc(r.tmt || '–')}</td>
-      <td><span class="badge wr">${esc(r.status || 'Tersimpan')}</span></td>
-      <td class="act"><button class="btn sm sec" data-id="${esc(r.id)}">Detail</button></td>
+      <td><span class="badge ${r.file_name ? 'ok' : 'wr'}">${r.file_name ? 'Dokumen Ada' : 'Belum Upload'}</span></td>
+      <td class="act">
+        ${!r.file_name ? `<button class="btn sm" data-upload="${esc(r.id)}">Upload SK</button>` : `<a class="btn sm sec" href="#" data-download="${esc(r.id)}">Lihat</a>`}
+      </td>
     </tr>`).join('')}
     </tbody></table></div>` : '<div class="empty">Belum ada dokumen SK yang diinput untuk jenis ini.</div>'}
   </div>`;
   $('#view').innerHTML = html;
 
   $('#addSK').onclick = () => openSKForm(id, null);
+  $('#view').onclick = async e => {
+    const up = e.target.closest('[data-upload]');
+    if (up) {
+      const input = document.createElement('input');
+      input.type = 'file'; input.accept = '.pdf';
+      input.onchange = async () => {
+        const f = input.files[0];
+        if (!f || f.size > 1024*1024) return toast('File PDF maksimal 1 MB', 'er');
+        const base64 = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(f); });
+        await api('uploadSKFile', { id: up.dataset.upload, file_name: f.name, file_base64: base64 });
+        toast('Dokumen SK diunggah', 'ok');
+        pageSK(id);
+      };
+      input.click();
+    }
+  };
 }
 
 function openSKForm(jenis, guru) {
@@ -912,50 +947,53 @@ function openSKForm(jenis, guru) {
         <div class="full"><label>Pejabat yang Menetapkan</label><input id="sk_pejabat" required></div>
         <div class="full"><label>Upload SK (PDF)</label><input id="sk_file" type="file" accept=".pdf" required></div>
       </div>`;
-  } else if (jenis === 'sk_definitif') {
+  } else if (jenis === 'sk_definitif' || jenis === 'sk_plt') {
+    const isPlt = jenis === 'sk_plt';
     fields = `
       <div class="fg">
-        <div class="full"><label>Nama PTK yang diangkat</label><select id="sk_ptk" required></select></div>
-        <div><label>Sekolah Penugasan</label><select id="sk_sekolah" required>${S.refs.map(s => `<option value="${esc(s.npsn)}">${esc(s.nama)}</option>`).join('')}</select></div>
-        <div><label>Jenis Keputusan</label><select id="sk_jenis" required>
-          <option>Pengangkatan Kepala Sekolah definitif</option>
-          <option>Pengangkatan kembali</option>
-          <option>Pengangkatan pada satuan pendidikan lain</option>
-        </select></div>
-        <div><label>Nomor SK</label><input id="sk_no" required></div>
-        <div><label>Tanggal SK</label><input id="sk_tgl" type="date" required></div>
-        <div><label>TMT Pengangkatan</label><input id="sk_tmt" type="date" required></div>
-        <div><label>Masa Penugasan Mulai</label><input id="sk_mulai" type="date"></div>
-        <div><label>Masa Penugasan Berakhir</label><input id="sk_akhir" type="date"></div>
-        <div class="full"><label>Pejabat yang Menetapkan</label><input id="sk_pejabat" required></div>
-        <div class="full"><label>Upload SK (PDF)</label><input id="sk_file" type="file" accept=".pdf" required></div>
-      </div>`;
-  } else if (jenis === 'sk_plt') {
-    fields = `
-      <div class="fg">
-        <div class="full"><label>Nama PTK yang ditunjuk sebagai Plt.</label><select id="sk_ptk" required></select></div>
-        <div><label>Sekolah yang Dipimpin sebagai Plt.</label><select id="sk_sekolah" required>${S.refs.map(s => `<option value="${esc(s.npsn)}">${esc(s.nama)}</option>`).join('')}</select></div>
-        <div><label>Status Kepala Sekolah Definitif</label><select id="sk_status" required>
+        <div class="full"><label>Daftar Nama PTK (bisa banyak)</label>
+          <div id="ptkList" style="border:1px solid var(--bd);border-radius:8px;padding:8px;min-height:60px;margin-bottom:8px"></div>
+          <div style="display:flex;gap:8px">
+            <select id="sk_ptk_add" style="flex:1"></select>
+            <button type="button" class="btn sm" id="addPtk">+ Tambah</button>
+          </div>
+        </div>
+        <div><label>${isPlt ? 'Sekolah yang Dipimpin sebagai Plt.' : 'Sekolah Penugasan'}</label><select id="sk_sekolah" required>${S.refs.map(s => `<option value="${esc(s.npsn)}">${esc(s.nama)}</option>`).join('')}</select></div>
+        ${isPlt ? `<div><label>Status Kepala Sekolah Definitif</label><select id="sk_status" required>
           <option>Jabatan kosong</option>
           <option>Pejabat definitif sedang berhalangan</option>
           <option>Pejabat definitif mendapat penugasan lain</option>
           <option>Kondisi lain</option>
-        </select></div>
+        </select></div>` : `<div><label>Jenis Keputusan</label><select id="sk_jenis" required>
+          <option>Pengangkatan Kepala Sekolah definitif</option>
+          <option>Pengangkatan kembali</option>
+          <option>Pengangkatan pada satuan pendidikan lain</option>
+        </select></div>`}
         <div><label>Nomor SK</label><input id="sk_no" required></div>
         <div><label>Tanggal SK</label><input id="sk_tgl" type="date" required></div>
-        <div><label>TMT Mulai Plt.</label><input id="sk_tmt" type="date" required></div>
-        <div><label>Tanggal Berakhir Plt.</label><input id="sk_akhir" type="date"></div>
+        <div><label>TMT</label><input id="sk_tmt" type="date" required></div>
+        ${!isPlt ? '<div><label>Masa Penugasan Mulai</label><input id="sk_mulai" type="date"></div><div><label>Masa Penugasan Berakhir</label><input id="sk_akhir" type="date"></div>' : '<div><label>Tanggal Berakhir Plt.</label><input id="sk_akhir" type="date"></div>'}
         <div class="full"><label>Pejabat yang Menetapkan</label><input id="sk_pejabat" required></div>
-        <div class="full"><label>Upload SK (PDF)</label><input id="sk_file" type="file" accept=".pdf" required></div>
+        <p class="mu full">Dokumen SK diunggah nanti di daftar setelah data tersimpan.</p>
       </div>`;
   }
 
-  const m = modal(titles[jenis] || 'Input SK', fields + '<p class="mu" style="margin-top:8px">File PDF maksimal 1 MB. Data disimpan sebagai Tersimpan / Menunggu Verifikasi.</p>', async (modalEl) => {
-    const fileInput = $('#sk_file', modalEl);
-    const file = fileInput && fileInput.files[0];
-    if (!file) throw new Error('File SK wajib diunggah');
-    if (file.size > 1024 * 1024) throw new Error('Ukuran file maksimal 1 MB');
-    if (!file.name.toLowerCase().endsWith('.pdf')) throw new Error('File harus berformat PDF');
+  const m = modal(titles[jenis] || 'Input SK', fields + '<p class="mu" style="margin-top:8px">Untuk SK Definitif & Plt, dokumen diunggah di daftar setelah disimpan.</p>', async (modalEl) => {
+    const isMulti = jenis === 'sk_definitif' || jenis === 'sk_plt';
+    let file = null, base64 = '';
+    if (!isMulti) {
+      const fileInput = $('#sk_file', modalEl);
+      file = fileInput && fileInput.files[0];
+      if (!file) throw new Error('File SK wajib diunggah');
+      if (file.size > 1024 * 1024) throw new Error('Ukuran file maksimal 1 MB');
+      if (!file.name.toLowerCase().endsWith('.pdf')) throw new Error('File harus berformat PDF');
+      base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
 
     const data = {
       jenis: jenis,
@@ -985,30 +1023,109 @@ function openSKForm(jenis, guru) {
       data.akhir = ($('#sk_akhir', modalEl) || {}).value || '';
     }
 
-    // Convert file to base64
-    const base64 = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result.split(',')[1]);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-    data.file_name = file.name;
-    data.file_base64 = base64;
-
+    if (!isMulti) {
+      data.file_name = file.name;
+      data.file_base64 = base64;
+    }
+    if (isMulti) {
+      const names = [...document.querySelectorAll('#ptkList .ptk-item')].map(el => el.dataset.id);
+      if (!names.length) throw new Error('Tambahkan minimal satu nama PTK');
+      data.ptk_ids = names;
+      data.ptk_id = names[0]; // untuk kompatibilitas
+    }
     await api('saveSK', data);
     toast('SK berhasil disimpan', 'ok');
     pageSK(jenis);
-  }, { ok: 'Simpan sebagai Tersimpan' });
+  }, { ok: 'Simpan' });
 
   // Isi dropdown PTK
   setTimeout(() => {
-    const sel = $('#sk_ptk', m);
+    const sel = $('#sk_ptk', m) || $('#sk_ptk_add', m);
     if (sel) {
       api('list', { entity: 'guru' }).then(r => {
-        sel.innerHTML = '<option value="">— pilih PTK —</option>' + r.rows.map(g => `<option value="${esc(g.id)}"${guru && g.id===guru.id?' selected':''}>${esc(g.nama)} (${esc(g.nip||'–')})</option>`).join('');
+        sel.innerHTML = '<option value="">— pilih PTK —</option>' + r.rows.map(g => `<option value="${esc(g.id)}">${esc(g.nama)} (${esc(g.nip||'–')})</option>`).join('');
       });
     }
+    const addBtn = $('#addPtk', m);
+    if (addBtn) {
+      addBtn.onclick = () => {
+        const s = $('#sk_ptk_add', m);
+        if (!s.value) return;
+        const list = $('#ptkList', m);
+        if (list.querySelector(`[data-id="${s.value}"]`)) return toast('Nama sudah ditambahkan', 'wr');
+        const opt = s.options[s.selectedIndex];
+        list.insertAdjacentHTML('beforeend', `<span class="ptk-item badge" data-id="${s.value}" style="margin:2px;display:inline-flex;align-items:center;gap:4px">${esc(opt.text)} <button type="button" style="border:0;background:none;cursor:pointer" onclick="this.parentElement.remove()">×</button></span>`);
+        s.value = '';
+      };
+    }
   }, 50);
+}
+
+async function pagePeriodeKepsek() {
+  $('#ttl').textContent = 'Periode Kepala Sekolah';
+  $('#view').innerHTML = '<div class="card mu">Memuat data…</div>';
+  let rows = [];
+  try { rows = (await api('list', { entity: 'periode_kepsek' })).rows || []; } catch(e) {}
+  const html = `<div class="card">
+    <div class="tools">
+      <div class="sp"></div>
+      <button class="btn sec" id="impPeriode">Impor Excel</button>
+      <button class="btn" id="addPeriode">+ Tambah</button>
+    </div>
+    ${rows.length ? `<div class="tw" style="overflow-x:auto"><table><thead><tr>
+      <th>No</th><th>Nama</th><th>NIP</th>
+      <th>Periode 1</th><th>Periode 2</th><th>Periode 3</th><th>Periode 4</th><th>Periode 5</th>
+      <th>Riwayat Sekolah</th>
+      <th>SK 1</th><th>SK 2</th><th>SK 3</th><th>SK 4</th><th>SK 5</th>
+      <th>Keterangan</th>
+    </tr></thead><tbody>
+    ${rows.map((r,i) => `<tr>
+      <td>${i+1}</td>
+      <td>${esc(r.nama||'–')}</td>
+      <td>${esc(r.nip||'–')}</td>
+      <td>${esc(r.periode1||'–')}</td>
+      <td>${esc(r.periode2||'–')}</td>
+      <td>${esc(r.periode3||'–')}</td>
+      <td>${esc(r.periode4||'–')}</td>
+      <td>${esc(r.periode5||'–')}</td>
+      <td>${esc(r.riwayat_sekolah||'–')}</td>
+      <td>${r.sk1 ? 'Ada' : '–'}</td>
+      <td>${r.sk2 ? 'Ada' : '–'}</td>
+      <td>${r.sk3 ? 'Ada' : '–'}</td>
+      <td>${r.sk4 ? 'Ada' : '–'}</td>
+      <td>${r.sk5 ? 'Ada' : '–'}</td>
+      <td>${esc(r.keterangan||'')}</td>
+    </tr>`).join('')}
+    </tbody></table></div>` : '<div class="empty">Belum ada data. Gunakan Impor Excel atau Tambah.</div>'}
+  </div>`;
+  $('#view').innerHTML = html;
+  $('#impPeriode').onclick = () => toast('Fitur impor Excel untuk Periode Kepala Sekolah siap dihubungkan ke backend.', 'ok');
+  $('#addPeriode').onclick = () => toast('Form tambah periode akan ditambahkan.', 'ok');
+}
+
+async function pagePengawas() {
+  $('#ttl').textContent = 'Data Pengawas Sekolah';
+  $('#view').innerHTML = '<div class="card mu">Memuat data…</div>';
+  let rows = [];
+  try { rows = (await api('list', { entity: 'pengawas' })).rows || []; } catch(e) {}
+  const html = `<div class="card">
+    <div class="tools">
+      <div class="sp"></div>
+      <button class="btn sec" id="impPengawas">Impor Excel</button>
+      <button class="btn" id="addPengawas">+ Tambah</button>
+    </div>
+    ${rows.length ? `<div class="tw"><table><thead><tr>
+      <th>No</th><th>Nama</th><th>NIP</th><th>Jenjang</th><th>Wilayah</th><th>Status</th>
+    </tr></thead><tbody>
+    ${rows.map((r,i) => `<tr>
+      <td>${i+1}</td><td>${esc(r.nama||'–')}</td><td>${esc(r.nip||'–')}</td>
+      <td>${esc(r.jenjang||'–')}</td><td>${esc(r.wilayah||'–')}</td><td>${esc(r.status||'–')}</td>
+    </tr>`).join('')}
+    </tbody></table></div>` : '<div class="empty">Belum ada data pengawas. Gunakan Impor Excel.</div>'}
+  </div>`;
+  $('#view').innerHTML = html;
+  $('#impPengawas').onclick = () => toast('Fitur impor Excel untuk Pengawas siap dihubungkan.', 'ok');
+  $('#addPengawas').onclick = () => toast('Form tambah pengawas akan ditambahkan.', 'ok');
 }
 
 async function pageEntity(id) {
