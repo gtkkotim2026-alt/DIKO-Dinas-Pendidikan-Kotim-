@@ -910,7 +910,7 @@ async function pageSK(id) {
     const edit = e.target.closest('[data-edit]');
     if (edit) {
       const rec = skList.find(x => x.id === edit.dataset.edit);
-      if (rec) openSKForm(id, { id: rec.ptk_id, nama: rec.nama });
+      if (rec) openSKForm(id, null, rec);
     }
   };
 }
@@ -961,7 +961,7 @@ function makeSearchableSelect(selectEl, placeholder) {
   });
 }
 
-function openSKForm(jenis, guru) {
+function openSKForm(jenis, guru, editRec) {
   const titles = {
     sk_pemberhentian: 'Input SK Pemberhentian',
     sk_mutasi: 'Input SK Mutasi',
@@ -1122,6 +1122,17 @@ function openSKForm(jenis, guru) {
     }
     pageSK(jenis);
   }, { ok: 'Simpan' });
+
+  // Prefill jika mode ubah
+  if (editRec) {
+    setTimeout(() => {
+      if ($('#sk_no', m)) $('#sk_no', m).value = editRec.no_sk || '';
+      if ($('#sk_tgl', m)) $('#sk_tgl', m).value = (editRec.tgl_sk || '').toString().slice(0,10);
+      if ($('#sk_tmt', m)) $('#sk_tmt', m).value = (editRec.tmt || '').toString().slice(0,10);
+      if ($('#sk_pejabat', m)) $('#sk_pejabat', m).value = editRec.pejabat || '';
+      toast('Mode Ubah — data dimuat', 'ok');
+    }, 300);
+  }
 
   // Isi dropdown PTK
   setTimeout(() => {
