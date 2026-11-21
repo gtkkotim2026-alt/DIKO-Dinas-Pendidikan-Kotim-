@@ -849,14 +849,15 @@ async function pageSK(id) {
       <button class="btn" id="addSK">+ Input SK Baru</button>
     </div>
     ${skList.length ? `<div class="tw"><table><thead><tr>
-      <th>#</th><th>Nama PTK</th><th>Nomor SK</th><th>Tanggal SK</th><th>TMT</th><th>Status</th><th></th>
+      <th>No</th><th>${id === 'sk_plt' ? 'Nama Plt. Kepala Sekolah' : 'Nama Kepala Sekolah'}</th><th>${id === 'sk_plt' ? 'Sekolah yang Dipimpin' : 'Sekolah Penugasan'}</th><th>Nomor SK</th><th>Tanggal SK</th><th>TMT SK</th><th>Status</th><th>Aksi</th>
     </tr></thead><tbody>
     ${skList.map((r, i) => `<tr>
       <td>${i+1}</td>
       <td>${esc(r.nama || '–')}</td>
+      <td>${esc(r.sekolah || '–')}</td>
       <td>${esc(r.no_sk || '–')}</td>
-      <td>${esc(r.tgl_sk || '–')}</td>
-      <td>${esc(r.tmt || '–')}</td>
+      <td>${esc((r.tgl_sk||'').toString().slice(0,10))}</td>
+      <td>${esc((r.tmt||'').toString().slice(0,10))}</td>
       <td><span class="badge ${r.file_name ? 'ok' : 'wr'}">${r.file_name ? 'Dokumen Ada' : 'Belum Upload'}</span></td>
       <td class="act">
         ${r.file_name ? '' : `<button class="btn sm" data-upload="${esc(r.id)}">Upload SK</button>`}
