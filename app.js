@@ -905,7 +905,12 @@ async function pageSK(id) {
       pageSK(id);
     }
     if (view) {
-      toast('Membuka dokumen…', 'ok');
+      const rec = skList.find(x => x.id === view.dataset.view);
+      if (rec && rec.file_url) {
+        window.open(rec.file_url, '_blank');
+      } else {
+        toast('Dokumen belum tersedia atau belum diunggah', 'wr');
+      }
     }
     const edit = e.target.closest('[data-edit]');
     if (edit) {
@@ -1126,12 +1131,18 @@ function openSKForm(jenis, guru, editRec) {
   // Prefill jika mode ubah
   if (editRec) {
     setTimeout(() => {
-      if ($('#sk_no', m)) $('#sk_no', m).value = editRec.no_sk || '';
-      if ($('#sk_tgl', m)) $('#sk_tgl', m).value = (editRec.tgl_sk || '').toString().slice(0,10);
-      if ($('#sk_tmt', m)) $('#sk_tmt', m).value = (editRec.tmt || '').toString().slice(0,10);
-      if ($('#sk_pejabat', m)) $('#sk_pejabat', m).value = editRec.pejabat || '';
-      toast('Mode Ubah — data dimuat', 'ok');
-    }, 300);
+      const set = (id, val) => { const el = $('#' + id, m); if (el) el.value = val || ''; };
+      set('sk_no', editRec.no_sk);
+      set('sk_tgl', (editRec.tgl_sk || '').toString().slice(0,10));
+      set('sk_tmt', (editRec.tmt || '').toString().slice(0,10));
+      set('sk_pejabat', editRec.pejabat);
+      set('sk_mulai', editRec.mulai);
+      set('sk_akhir', editRec.akhir);
+      if (editRec.sekolah_npsn && $('#sk_sekolah', m)) {
+        $('#sk_sekolah', m).value = editRec.sekolah_npsn;
+      }
+      toast('Mode Ubah — data dimuat ke form', 'ok');
+    }, 400);
   }
 
   // Isi dropdown PTK
