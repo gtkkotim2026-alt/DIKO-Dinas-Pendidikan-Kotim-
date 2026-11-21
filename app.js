@@ -1116,7 +1116,7 @@ function openSKForm(jenis, guru, editRec) {
         <div><label>Tanggal SK</label><input id="sk_tgl" type="date" required></div>
         <div><label>TMT</label><input id="sk_tmt" type="date" required></div>
         ${isPlt ? '<div><label>Tanggal Berakhir Plt.</label><input id="sk_akhir" type="date"></div>' : ''}
-        ${isPlt ? '<div class="full"><label>Upload Dokumen SK (PDF)</label><input id="sk_file" type="file" accept=".pdf" required></div>' : ''}
+        
         <div class="full"><label>Pejabat yang Menetapkan</label><input id="sk_pejabat" required></div>
         <p class="mu full">Dokumen SK diunggah nanti di daftar setelah data tersimpan.</p>
       </div>`;
@@ -1126,7 +1126,7 @@ function openSKForm(jenis, guru, editRec) {
     const isMulti = jenis === 'sk_definitif' || jenis === 'sk_plt';
     const isPlt = jenis === 'sk_plt';
     let file = null, base64 = '';
-    if (!isMulti || isPlt) {
+    if (!isMulti) {
       const fileInput = $('#sk_file', modalEl);
       file = fileInput && fileInput.files[0];
       if (!file) throw new Error('File SK wajib diunggah');
@@ -1174,10 +1174,11 @@ function openSKForm(jenis, guru, editRec) {
       data.file_base64 = base64;
     }
     if (isMulti) {
-      const names = [...document.querySelectorAll('#ptkList .ptk-item')].map(el => el.dataset.id);
+      const items = [...document.querySelectorAll('#ptkList .ptk-item')]; const names = items.map(el => el.dataset.id);
       if (!names.length) throw new Error('Tambahkan minimal satu nama PTK');
-      for (const pid of names) {
-        const one = Object.assign({}, data, { ptk_id: pid });
+      const items = [...document.querySelectorAll('#ptkList .ptk-item')];
+      for (const el of items) {
+        const one = Object.assign({}, data, { ptk_id: el.dataset.id, sekolah: el.dataset.sekolah });
         await api('saveSK', one);
       }
       toast(names.length + ' data SK berhasil disimpan', 'ok');
@@ -1219,24 +1220,23 @@ function openSKForm(jenis, guru, editRec) {
       const updateSummary = () => {
         const items = [...$('#ptkList', m).querySelectorAll('.ptk-item')];
         const body = $('#ptkSummaryBody', m);
-        const sekolah = $('#sk_sekolah', m);
-        const sekolahNama = sekolah && sekolah.options[sekolah.selectedIndex] ? sekolah.options[sekolah.selectedIndex].text : '–';
         if (!items.length) { $('#ptkSummary', m).style.display = 'none'; return; }
         $('#ptkSummary', m).style.display = '';
-        body.innerHTML = items.map((el, i) => `<tr><td>${i+1}</td><td>${esc(el.textContent.replace('×','').trim())}</td><td>${esc(sekolahNama)}</td></tr>`).join('');
+        body.innerHTML = items.map((el, i) => `<tr><td>${i+1}</td><td>${esc(el.dataset.nama || el.textContent.replace('×','').trim())}</td><td>${esc(el.dataset.sekolahNama || '–')}</td></tr>`).join('');
       };
       addBtn.onclick = () => {
         const s = $('#sk_ptk_add', m);
-        if (!s.value) return;
+        const sekolahSel = $('#sk_sekolah', m);
+        if (!s.value) return toast('Pilih nama PTK', 'wr');
+        if (!sekolahSel || !sekolahSel.value) return toast('Pilih sekolah penugasan', 'wr');
         const list = $('#ptkList', m);
         if (list.querySelector(`[data-id="${s.value}"]`)) return toast('Nama sudah ditambahkan', 'wr');
         const opt = s.options[s.selectedIndex];
-        list.insertAdjacentHTML('beforeend', `<span class="ptk-item badge" data-id="${s.value}" style="margin:2px;display:inline-flex;align-items:center;gap:4px">${esc(opt.text)} <button type="button" style="border:0;background:none;cursor:pointer" onclick="this.parentElement.remove();updateSummary()">×</button></span>`);
+        const sekolahNama = sekolahSel.options[sekolahSel.selectedIndex] ? sekolahSel.options[sekolahSel.selectedIndex].text : '';
+        list.insertAdjacentHTML('beforeend', `<span class="ptk-item badge" data-id="${s.value}" data-sekolah="${sekolahSel.value}" data-sekolah-nama="${esc(sekolahNama)}" data-nama="${esc(opt.text)}" style="margin:2px;display:inline-flex;align-items:center;gap:4px">${esc(opt.text)} <button type="button" style="border:0;background:none;cursor:pointer" onclick="this.parentElement.remove();updateSummary()">×</button></span>`);
         s.value = '';
         updateSummary();
       };
-      const sekolahSel = $('#sk_sekolah', m);
-      if (sekolahSel) sekolahSel.onchange = updateSummary;
     }
     // Buat searchable untuk select sekolah
     ['sk_sekolah','sk_tujuan'].forEach(id => {
