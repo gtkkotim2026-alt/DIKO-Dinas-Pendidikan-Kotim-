@@ -973,9 +973,9 @@ function openEditSK(jenis, rec) {
     pageSK(jenis);
   }, { ok: 'Simpan Perubahan' });
   setTimeout(() => {
-    const sel = $('#ed_sekolah', m);
-    if (sel) makeSearchableSelect(sel, 'Ketik nama sekolah…');
-  }, 100);
+    const sel = document.querySelector('#ed_sekolah');
+    if (sel && !sel.dataset.searchable) makeSearchableSelect(sel, 'Ketik nama sekolah…');
+  }, 200);
 }
 
 function makeSearchableSelect(selectEl, placeholder) {
@@ -992,6 +992,7 @@ function makeSearchableSelect(selectEl, placeholder) {
   input.placeholder = placeholder || 'Ketik untuk mencari…';
   input.style.width = '100%';
   input.className = 'searchable-input';
+  if (selectEl.selectedIndex > 0) input.value = selectEl.options[selectEl.selectedIndex].text;
   wrapper.insertBefore(input, selectEl);
 
   const list = document.createElement('div');
