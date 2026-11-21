@@ -906,7 +906,11 @@ async function pageSK(id) {
     }
     if (view) {
       toast('Membuka dokumen…', 'ok');
-      // In real use, call API to get base64 and open in new tab
+    }
+    const edit = e.target.closest('[data-edit]');
+    if (edit) {
+      const rec = skList.find(x => x.id === edit.dataset.edit);
+      if (rec) openSKForm(id, { id: rec.ptk_id, nama: rec.nama });
     }
   };
 }
