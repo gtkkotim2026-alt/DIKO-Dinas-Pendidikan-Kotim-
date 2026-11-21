@@ -1417,17 +1417,50 @@ function openImportPeriode() {
   const input = document.createElement('input');
   input.type = 'file'; input.accept = '.xlsx,.xls';
   input.onchange = () => {
-    const targets = [
-      {k:'nama',l:'Nama'},{k:'nip',l:'NIP'},{k:'jabatan',l:'Jabatan'},{k:'no_hp',l:'No. HP'},
-      {k:'sekolah',l:'Asal Sekolah'},{k:'kecamatan',l:'Kecamatan'},{k:'tmt',l:'TMT SK'},
-      {k:'keterangan',l:'Keterangan'},{k:'link_sk',l:'Link SK'},
-      {k:'periode1',l:'Periode 1'},{k:'periode2',l:'Periode 2'},{k:'periode3',l:'Periode 3'},{k:'periode4',l:'Periode 4'}
-    ];
-    showColumnMatch(input.files[0], targets, async data => {
-      await api('importPeriode', { rows: data });
-      toast(data.length + ' data berhasil diimpor', 'ok');
-      pagePeriodeKepsek();
-    });
+    const f = input.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wb = XLSX.read(e.target.result);
+      const pick = `<div><label>Pilih Sheet</label>
+        <select id="shPick" style="width:100%;margin:8px 0">${wb.SheetNames.map(n=>`<option>${esc(n)}</option>`).join('')}</select>
+        <p class="mu">Pilih sheet (TK / SD / SMP), lalu impor.</p></div>`;
+      modal('Impor Periode Kepala Sekolah', pick, async () => {
+        const name = $('#shPick').value;
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' });
+        // Cari baris header
+        let h = rows.findIndex(r => r.some(c => String(c).toUpperCase().trim() === 'NAMA') && r.some(c => String(c).toUpperCase().includes('NIP')));
+        if (h < 0) throw new Error('Header tidak ditemukan. Pastikan ada kolom NAMA dan NIP.');
+        const hdr = rows[h].map(c => String(c||'').toUpperCase().trim());
+        const col = k => hdr.findIndex(x => x.includes(k));
+        const data = [];
+        for (let i = h + 1; i < rows.length; i++) {
+          const r = rows[i];
+          const nama = String(r[col('NAMA')]||'').trim();
+          if (!nama || nama.length < 3) continue;
+          data.push({
+            nama: nama,
+            nip: String(r[col('NIP')]||'').trim(),
+            jabatan: String(r[col('JABATAN')]||'').trim(),
+            no_hp: String(r[col('HP')]||r[col('WA')]||'').trim(),
+            sekolah: String(r[col('ASAL')]||r[col('SEKOLAH')]||'').trim(),
+            kecamatan: String(r[col('KECAMATAN')]||'').trim(),
+            tmt: String(r[col('TMT')]||'').trim(),
+            keterangan: String(r[col('KETERANGAN')]||'').trim(),
+            link_sk: String(r[col('LINK')]||'').trim(),
+            periode1: String(r[col('PERIODE 1')]||'').trim(),
+            periode2: String(r[col('PERIODE 2')]||'').trim(),
+            periode3: String(r[col('PERIODE 3')]||'').trim(),
+            periode4: String(r[col('PERIODE 4')]||'').trim()
+          });
+        }
+        if (!data.length) throw new Error('Tidak ada data yang terbaca di sheet ini');
+        await api('importPeriode', { rows: data });
+        toast(data.length + ' data berhasil diimpor dari sheet ' + name, 'ok');
+        pagePeriodeKepsek();
+      }, { ok: 'Impor' });
+    };
+    reader.readAsArrayBuffer(f);
   };
   input.click();
 }
