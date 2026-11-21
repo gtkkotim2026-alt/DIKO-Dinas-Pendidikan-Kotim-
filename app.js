@@ -884,6 +884,52 @@ async function pageSK(id) {
   };
 }
 
+
+function makeSearchableSelect(selectEl, placeholder) {
+  if (!selectEl || selectEl.dataset.searchable) return;
+  selectEl.dataset.searchable = '1';
+  const wrapper = document.createElement('div');
+  wrapper.style.position = 'relative';
+  selectEl.parentNode.insertBefore(wrapper, selectEl);
+  wrapper.appendChild(selectEl);
+  selectEl.style.display = 'none';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = placeholder || 'Ketik untuk mencari…';
+  input.style.width = '100%';
+  input.className = 'searchable-input';
+  wrapper.insertBefore(input, selectEl);
+
+  const list = document.createElement('div');
+  list.className = 'searchable-list tw';
+  list.style.cssText = 'position:absolute;z-index:50;background:#fff;border:1px solid var(--bd);border-radius:8px;max-height:220px;overflow:auto;width:100%;display:none;box-shadow:var(--shadow)';
+  wrapper.appendChild(list);
+
+  const options = [...selectEl.options].map(o => ({ value: o.value, text: o.text }));
+
+  function render(q) {
+    const ql = (q || '').toLowerCase();
+    const filtered = options.filter(o => o.value && o.text.toLowerCase().includes(ql));
+    list.innerHTML = filtered.slice(0, 50).map(o => `<div data-v="${esc(o.value)}" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9">${esc(o.text)}</div>`).join('') || '<div style="padding:8px 12px;color:var(--mu)">Tidak ditemukan</div>';
+    list.style.display = filtered.length || q ? 'block' : 'none';
+  }
+
+  input.oninput = () => render(input.value);
+  input.onfocus = () => render(input.value);
+  list.onclick = e => {
+    const d = e.target.closest('[data-v]');
+    if (!d) return;
+    selectEl.value = d.dataset.v;
+    input.value = d.textContent;
+    list.style.display = 'none';
+    selectEl.dispatchEvent(new Event('change'));
+  };
+  document.addEventListener('click', e => {
+    if (!wrapper.contains(e.target)) list.style.display = 'none';
+  });
+}
+
 function openSKForm(jenis, guru) {
   const titles = {
     sk_pemberhentian: 'Input SK Pemberhentian',
@@ -1048,6 +1094,7 @@ function openSKForm(jenis, guru) {
     if (sel) {
       api('list', { entity: 'guru' }).then(r => {
         sel.innerHTML = '<option value="">— pilih PTK —</option>' + r.rows.map(g => `<option value="${esc(g.id)}">${esc(g.nama)} (${esc(g.nip||'–')})</option>`).join('');
+        makeSearchableSelect(sel, 'Ketik nama atau NIP…');
       });
     }
     const addBtn = $('#addPtk', m);
@@ -1074,6 +1121,11 @@ function openSKForm(jenis, guru) {
       const sekolahSel = $('#sk_sekolah', m);
       if (sekolahSel) sekolahSel.onchange = updateSummary;
     }
+    // Buat searchable untuk select sekolah
+    ['sk_sekolah','sk_tujuan'].forEach(id => {
+      const el = $('#' + id, m);
+      if (el) makeSearchableSelect(el, 'Ketik nama sekolah…');
+    });
   }, 50);
 }
 
@@ -1347,6 +1399,14 @@ function openForm(rec) {
   });
   bindGeo(m);
   if (ent.pick) bindPicker(m, ent);
+  // Buat semua select ref (sekolah) bisa diketik
+  setTimeout(() => {
+    $$('select', m).forEach(sel => {
+      if (sel.id && sel.id.startsWith('f_') && sel.options.length > 8) {
+        makeSearchableSelect(sel, 'Ketik untuk mencari…');
+      }
+    });
+  }, 100);
   if (V.id === 'users') {
     const rs = $('#f_role', m), t = () => { $('#w_npsn_sekolah', m).style.display = rs.value === 'sekolah' ? '' : 'none'; };
     rs.onchange = t; t();
@@ -1374,6 +1434,7 @@ function openForm(rec) {
     api('list', { entity: 'pegawai' }).then(r => {
       const sel = $('#pickPegawai', m);
       sel.innerHTML = '<option value="">— isi manual —</option>' + r.rows.map(p => `<option value="${esc(p.id)}">${esc(p.nama)} (${esc(p.nip||'–')})</option>`).join('');
+      makeSearchableSelect(sel, 'Ketik nama atau NIP pegawai…');
     });
     $('#pickPegawai', m).onchange = async e => {
       if (!e.target.value) {
