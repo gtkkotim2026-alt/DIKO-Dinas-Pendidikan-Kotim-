@@ -1384,7 +1384,10 @@ function processSheet(rows, targets, onConfirm) {
     if (hIdx < 0) hIdx = 0;
     const headers = rows[hIdx].map((h,i) => String(h||'').trim() || ('Kolom ' + (i+1)));
     const html = `<div class="tw" style="max-height:320px"><table><thead><tr><th>Kolom Aplikasi</th><th>Kolom di Excel</th></tr></thead><tbody>
-      ${targets.map(t => `<tr><td>${esc(t.l)}</td><td><select data-k="${t.k}"><option value="-1">— tidak dipakai —</option>${headers.map((h,i)=>`<option value="${i}">${esc(h)}</option>`).join('')}</select></td></tr>`).join('')}
+      ${targets.map(t => {
+  const guess = headers.findIndex(h => h.toUpperCase().includes(t.l.toUpperCase().split(' ')[0]) || h.toUpperCase().includes(t.k.toUpperCase()));
+  return `<tr><td>${esc(t.l)}</td><td><select data-k="${t.k}"><option value="-1">— tidak dipakai —</option>${headers.map((h,i)=>`<option value="${i}"${i===guess?' selected':''}>${esc(h)}</option>`).join('')}</select></td></tr>`;
+}).join('')}
     </tbody></table></div>
     <p class="mu">Pilih kolom Excel yang sesuai dengan data aplikasi.</p>`;
     modal('Pencocokan Kolom', html, () => {
@@ -1459,9 +1462,6 @@ async function pagePeriodeKepsek() {
       <td>${esc(r.keterangan||'–')}</td>
       <td>${r.link_sk ? `<a class="btn sm sec" href="${esc(r.link_sk)}" target="_blank">Lihat SK</a>` : '–'}</td>
       <td><button class="btn sm sec" data-edit-periode="${esc(r.id)}">Edit</button></td>
-      <td>${r.sk4 ? 'Ada' : '–'}</td>
-      <td>${r.sk5 ? 'Ada' : '–'}</td>
-      <td>${esc(r.keterangan||'')}</td>
     </tr>`).join('')}
     </tbody></table></div>` : '<div class="empty">Belum ada data. Gunakan Impor Excel atau Tambah.</div>'}
   </div>`;
