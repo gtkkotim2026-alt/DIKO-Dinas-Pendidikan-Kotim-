@@ -839,7 +839,7 @@ async function pageSK(id) {
       <td>${esc(r.no_sk || '–')}</td>
       <td>${esc(r.tgl_sk || '–')}</td>
       <td>${esc(r.tmt || '–')}</td>
-      <td><span class="badge wr">${esc(r.status || 'Draft')}</span></td>
+      <td><span class="badge wr">${esc(r.status || 'Tersimpan')}</span></td>
       <td class="act"><button class="btn sm sec" data-id="${esc(r.id)}">Detail</button></td>
     </tr>`).join('')}
     </tbody></table></div>` : '<div class="empty">Belum ada dokumen SK yang diinput untuk jenis ini.</div>'}
@@ -950,7 +950,7 @@ function openSKForm(jenis, guru) {
       </div>`;
   }
 
-  const m = modal(titles[jenis] || 'Input SK', fields + '<p class="mu" style="margin-top:8px">File PDF maksimal 1 MB. Data disimpan sebagai Draft / Menunggu Verifikasi.</p>', async (modalEl) => {
+  const m = modal(titles[jenis] || 'Input SK', fields + '<p class="mu" style="margin-top:8px">File PDF maksimal 1 MB. Data disimpan sebagai Tersimpan / Menunggu Verifikasi.</p>', async (modalEl) => {
     const fileInput = $('#sk_file', modalEl);
     const file = fileInput && fileInput.files[0];
     if (!file) throw new Error('File SK wajib diunggah');
@@ -996,8 +996,9 @@ function openSKForm(jenis, guru) {
     data.file_base64 = base64;
 
     await api('saveSK', data);
-    toast('SK berhasil disimpan (Draft)', 'ok');
-  }, { ok: 'Simpan sebagai Draft' });
+    toast('SK berhasil disimpan', 'ok');
+    pageSK(jenis);
+  }, { ok: 'Simpan sebagai Tersimpan' });
 
   // Isi dropdown PTK
   setTimeout(() => {
@@ -1242,24 +1243,26 @@ function openForm(rec) {
       sel.innerHTML = '<option value="">— isi manual —</option>' + r.rows.map(p => `<option value="${esc(p.id)}">${esc(p.nama)} (${esc(p.nip||'–')})</option>`).join('');
     });
     $('#pickPegawai', m).onchange = async e => {
-      if (!e.target.value) return;
+      if (!e.target.value) {
+        $('#fotoPrev', m).innerHTML = '';
+        return;
+      }
       const peg = (await api('list', { entity: 'pegawai' })).rows.find(x => x.id === e.target.value);
       if (peg) {
         if ($('#f_nama', m)) $('#f_nama', m).value = peg.nama || '';
         if ($('#f_username', m) && isNew) $('#f_username', m).value = (peg.nip || '').replace(/\D/g,'') || '';
-        // Auto isi foto jika ada
         if (peg.foto) {
-          $('#fotoPrev', m).innerHTML = `<img src="${esc(peg.foto)}" style="width:64px;height:64px;border-radius:50%;object-fit:cover">`;
-          // simpan URL foto untuk dikirim
-          if (!$('#f_foto_hidden', m)) {
-            const hid = document.createElement('input');
+          $('#fotoPrev', m).innerHTML = `<img src="${peg.foto}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid #e2e8f0">`;
+          let hid = $('#f_foto', m);
+          if (!hid) {
+            hid = document.createElement('input');
             hid.type = 'hidden';
-            hid.id = 'f_foto_hidden';
-            hid.value = peg.foto;
-            m.appendChild(hid);
-          } else {
-            $('#f_foto_hidden', m).value = peg.foto;
+            hid.id = 'f_foto';
+            $('.fg', m).appendChild(hid);
           }
+          hid.value = peg.foto;
+        } else {
+          $('#fotoPrev', m).innerHTML = '<span class="mu">Pegawai ini belum memiliki foto</span>';
         }
       }
     };
