@@ -927,11 +927,12 @@ async function pageSK(id) {
 
 
 function openEditSK(jenis, rec) {
+  if (!rec) return toast('Data tidak ditemukan', 'er');
   const isPlt = jenis === 'sk_plt';
   const html = `
     <div class="fg">
-      <div class="full"><label>Nama PTK</label>
-        <input value="${esc(rec.nama || '')}" disabled style="background:#f1f5f9">
+      <div class="full"><label>Nama PTK (tidak dapat diubah)</label>
+        <input value="${esc(rec.nama || '–')}" disabled style="background:#f1f5f9;font-weight:600">
       </div>
       <div><label>${isPlt ? 'Sekolah yang Dipimpin' : 'Sekolah Penugasan'}</label>
         <select id="ed_sekolah">${S.refs.map(s => `<option value="${esc(s.npsn)}"${s.npsn===rec.sekolah_npsn?' selected':''}>${esc(s.nama)}</option>`).join('')}</select>
@@ -941,10 +942,14 @@ function openEditSK(jenis, rec) {
       <div><label>TMT</label><input id="ed_tmt" type="date" value="${esc((rec.tmt||'').toString().slice(0,10))}" required></div>
       <div class="full"><label>Pejabat yang Menetapkan</label><input id="ed_pejabat" value="${esc(rec.pejabat||'')}" required></div>
       <div class="full"><label>Keterangan</label><textarea id="ed_ket" rows="2">${esc(rec.keterangan||'')}</textarea></div>
+      <div class="full"><label>Dokumen SK (opsional — kosongkan jika tidak ingin mengubah)</label>
+        <input id="ed_file" type="file" accept=".pdf">
+        ${rec.file_name ? `<div class="mu" style="margin-top:4px">Dokumen saat ini: ${esc(rec.file_name)}</div>` : '<div class="mu">Belum ada dokumen</div>'}
+      </div>
     </div>
-    <p class="mu">Nama PTK tidak dapat diubah. Hanya informasi SK yang bisa dikoreksi.</p>`;
+    <p class="mu">Nama PTK tidak dapat diubah. Dokumen SK bisa diganti atau dibiarkan.</p>`;
 
-  modal('Ubah Data SK', html, async (m) => {
+  const m = modal('Ubah Data SK', html, async (mm) => {
     const data = {
       id: rec.id,
       jenis: jenis,
@@ -955,10 +960,22 @@ function openEditSK(jenis, rec) {
       sekolah: $('#ed_sekolah', m).value,
       keterangan: $('#ed_ket', m).value
     };
+    const fileInput = $('#ed_file', m);
+    if (fileInput && fileInput.files[0]) {
+      const f = fileInput.files[0];
+      if (f.size > 1024*1024) throw new Error('File maksimal 1 MB');
+      const base64 = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(f); });
+      data.file_name = f.name;
+      data.file_base64 = base64;
+    }
     await api('updateSK', data);
     toast('Data SK berhasil diubah', 'ok');
     pageSK(jenis);
   }, { ok: 'Simpan Perubahan' });
+  setTimeout(() => {
+    const sel = $('#ed_sekolah', m);
+    if (sel) makeSearchableSelect(sel, 'Ketik nama sekolah…');
+  }, 100);
 }
 
 function makeSearchableSelect(selectEl, placeholder) {
