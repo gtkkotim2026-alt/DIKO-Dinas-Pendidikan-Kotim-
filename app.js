@@ -75,7 +75,7 @@ function setBusy(n) {
   if (ld) ld.classList.toggle('show', busy > 0);
 }
 const _cache = new Map();
-const CACHE_TTL = 90000; // 90 detik
+const CACHE_TTL = 180000; // 90 detik
 
 async function api(action, payload = {}, skipCache = false) {
   if (!CFG.API_URL || CFG.API_URL.indexOf('GANTI') >= 0) throw new Error('API_URL belum diisi di config.js');
@@ -2286,12 +2286,18 @@ function drawMap(list) {
 
 /* ---------- mulai ---------- */
 (async function boot() {
+  showLogin(); // tampilkan dulu agar terasa cepat
   const tk = sessionStorage.getItem('tk');
   if (tk) {
     S.token = tk;
-    try { init(await api('bootstrap')); return; } catch (e) { sessionStorage.removeItem('tk'); }
+    try {
+      const data = await api('bootstrap');
+      document.querySelector('.login-wrap')?.remove();
+      init(data);
+    } catch (e) {
+      sessionStorage.removeItem('tk');
+    }
   }
-  showLogin();
 })();
 
 /* ---------- Mediasi Perceraian: cetak dokumen ---------- */
