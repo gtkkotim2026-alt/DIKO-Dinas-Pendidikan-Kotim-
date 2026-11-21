@@ -148,7 +148,7 @@ function previewFoto(inp, prevId) {
   const f = inp.files[0]; if (!f) return;
   const img = new Image();
   const reader = new FileReader();
-  reader.onload = e => { img.src = e.target.result; };
+  reader.onload = async e => { img.src = e.target.result; };
   img.onload = () => {
     const canvas = document.createElement('canvas');
     const max = 200;
@@ -1358,8 +1358,8 @@ function cetakLaporanSK(jenis, list) {
 
 function showColumnMatch(file, targets, onConfirm) {
   const reader = new FileReader();
-  reader.onload = e => {
-    const wb = XLSX.read(e.target.result);
+  reader.onload = async e => {
+    await ensureXLSX(); const wb = XLSX.read(e.target.result);
     const sheetNames = wb.SheetNames;
     const pickHtml = `<div><label>Pilih Sheet</label>
       <select id="sheetPick" style="width:100%;margin:8px 0">${sheetNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}</select>
@@ -1413,6 +1413,34 @@ function processSheet(rows, targets, onConfirm) {
     }, { ok: 'Impor Data' });
 }
 
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector('script[src="' + src + '"]')) return resolve();
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('Gagal memuat ' + src));
+    document.head.appendChild(s);
+  });
+}
+function loadCSS(href) {
+  if (document.querySelector('link[href="' + href + '"]')) return;
+  const l = document.createElement('link');
+  l.rel = 'stylesheet';
+  l.href = href;
+  document.head.appendChild(l);
+}
+async function ensureXLSX() {
+  if (window.XLSX) return;
+  await loadScript('https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js');
+}
+async function ensureLeaflet() {
+  if (window.L) return;
+  loadCSS('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
+  await loadScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js');
+}
+
 function openImportPeriode() {
   const input = document.createElement('input');
   input.type = 'file'; input.accept = '.xlsx,.xls';
@@ -1420,8 +1448,8 @@ function openImportPeriode() {
     const f = input.files[0];
     if (!f) return;
     const reader = new FileReader();
-    reader.onload = e => {
-      const wb = XLSX.read(e.target.result);
+    reader.onload = async e => {
+      await ensureXLSX(); const wb = XLSX.read(e.target.result);
       const pick = `<div><label>Pilih Sheet</label>
         <select id="shPick" style="width:100%;margin:8px 0">${wb.SheetNames.map(n=>`<option>${esc(n)}</option>`).join('')}</select>
         <p class="mu">Pilih sheet (TK / SD / SMP), lalu impor.</p></div>`;
@@ -1530,7 +1558,7 @@ function _oldImportPengawas() {
   modal('Impor Data Pengawas', html, async () => {
     const f = $('#impFile').files[0];
     if (!f) throw new Error('Pilih file');
-    const wb = XLSX.read(await f.arrayBuffer());
+    await ensureXLSX(); const wb = await ensureXLSX(); XLSX.read(await f.arrayBuffer());
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
     const hIdx = rows.findIndex(r => r.some(c => String(c).toUpperCase().includes('NAMA')));
     const headers = (rows[hIdx]||[]).map(h => String(h||'').toUpperCase());
@@ -1605,7 +1633,7 @@ function _oldImportWilayah() {
   modal('Impor Wilayah Binaan', html, async () => {
     const f = $('#impFile').files[0];
     if (!f) throw new Error('Pilih file');
-    const wb = XLSX.read(await f.arrayBuffer());
+    await ensureXLSX(); const wb = await ensureXLSX(); XLSX.read(await f.arrayBuffer());
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
     const data = [];
     let currentNama = '', currentNip = '';
@@ -1939,7 +1967,7 @@ function openForm(rec) {
     $('#userFoto', m).onchange = function() {
       const f = this.files[0]; if (!f) return;
       const reader = new FileReader();
-      reader.onload = e => {
+      reader.onload = async e => {
         $('#fotoPrev', m).innerHTML = `<img src="${e.target.result}" style="width:64px;height:64px;border-radius:50%;object-fit:cover">`;
         // simpan base64 sementara (bisa dikirim ke backend jika didukung)
       };
@@ -2209,6 +2237,7 @@ async function openImport() {
 
 /* ---------- lokasi sekolah ---------- */
 async function pageLokasi() {
+  await ensureLeaflet();
   const ent = S.schema.sekolah; $('#ttl').textContent = 'Lokasi Sekolah';
   $('#view').innerHTML = '<div class="card mu">Memuat…</div>';
   const rows = (await api('list', { entity: 'sekolah' })).rows.filter(r => r.status_sekolah === 'Negeri');   // hanya sekolah negeri
