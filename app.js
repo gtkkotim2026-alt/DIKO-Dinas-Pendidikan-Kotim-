@@ -1174,14 +1174,13 @@ function openSKForm(jenis, guru, editRec) {
       data.file_base64 = base64;
     }
     if (isMulti) {
-      const items = [...document.querySelectorAll('#ptkList .ptk-item')];
-      const names = items.map(el => el.dataset.id);
-      if (!names.length) throw new Error('Tambahkan minimal satu nama PTK');
-      for (const el of items) {
+      const ptkItems = [...document.querySelectorAll('#ptkList .ptk-item')];
+      if (!ptkItems.length) throw new Error('Tambahkan minimal satu nama PTK');
+      for (const el of ptkItems) {
         const one = Object.assign({}, data, { ptk_id: el.dataset.id, sekolah: el.dataset.sekolah });
         await api('saveSK', one);
       }
-      toast(names.length + ' data SK berhasil disimpan', 'ok');
+      toast(ptkItems.length + ' data SK berhasil disimpan', 'ok');
     } else {
       await api('saveSK', data);
       toast('SK berhasil disimpan', 'ok');
