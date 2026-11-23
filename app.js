@@ -456,12 +456,28 @@ function cetakRekomDemo() {
 async function pageTentang() {
   $('#ttl').textContent = 'Tentang Pengembang';
   $('#view').innerHTML = `
-    <div class="card" style="max-width:720px;margin:0 auto">
-      <div style="text-align:center;margin-bottom:5px">
-        <img src="icon-512.png" style="width:90px;height:90px;border-radius:50%;object-fit:cover;margin-bottom:5px;display:inline-block">
-        <p class="mu">Sistem Informasi Terintegrasi untuk Tata Kelola Guru dan Tenaga Kependidikan</p>
+    <div class="card" style="max-width:640px;margin:0 auto;padding:32px 24px;text-align:center">
+
+      <img src="icon-512.png"
+           style="display:block;margin:0 auto 12px;height:56px;width:auto;max-width:70%;object-fit:contain">
+
+      <p class="mu" style="margin:0 auto;max-width:420px;line-height:1.5">
+        Sistem Informasi Terintegrasi untuk Tata Kelola Guru dan Tenaga Kependidikan
+      </p>
+
+      <hr style="border:0;border-top:1px solid #e5e7eb;margin:24px auto;max-width:360px">
+
+      <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#667085;margin-bottom:6px">
+        Pengembang
       </div>
-      <p style="text-align:center;margin-top:5px;font-size:15px">Powered by <strong>Hadvhy Art</strong></p>
+      <div style="font-size:18px;font-weight:700;color:#101828">Haddie Hadvhy</div>
+      <p style="margin:6px 0 0;font-size:14px;color:#475467">
+        Powered by <strong>Hadvhy Art</strong>
+      </p>
+
+      <p style="margin:24px 0 0;font-size:12px;color:#98a2b3">
+        © ${new Date().getFullYear()} Dinas Pendidikan Kabupaten Kotawaringin Timur
+      </p>
     </div>`;
 }
 
