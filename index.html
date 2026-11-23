@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DIKO</title>
-<link rel="icon" type="image/jpeg" href="diko.jpg">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="manifest" href="./manifest.json">
 <meta name="theme-color" content="#1a56db">
 <meta name="mobile-web-app-capable" content="yes">
@@ -96,9 +97,7 @@ header{background:rgba(255,255,255,.92)!important;backdrop-filter:blur(16px)!imp
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
-      .then(reg => console.log('SW OK:', reg.scope))
-      .catch(err => console.log('SW error:', err));
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
   });
 }
 </script>
