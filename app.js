@@ -459,7 +459,6 @@ async function pageTentang() {
     <div class="card" style="max-width:720px;margin:0 auto">
       <div style="text-align:center;margin-bottom:20px">
         <img src="icon-192.png" alt="diko" style="width:90px;height:90px;border-radius:50%;object-fit:cover;margin-bottom:12px;display:inline-block">
-        <h2 style="margin:0">DIKO</h2>
         <p class="mu">Sistem Informasi Terintegrasi untuk Tata Kelola Guru dan Tenaga Kependidikan</p>
       </div>
       <p style="text-align:center;margin-top:16px;font-size:15px">Powered by <strong>Hadvhy Art</strong></p>
