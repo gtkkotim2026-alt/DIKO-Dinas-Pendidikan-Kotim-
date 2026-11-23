@@ -196,7 +196,7 @@ function showLogin() {
       <div class="auth-illustration">
         <div class="logo-big">DIKO</div>
         <p>Sistem Informasi Terintegrasi<br>Tata Kelola Guru & Tenaga Kependidikan</p>
-        <p style="margin-top:24px;font-size:13px;opacity:.8">Powered by <strong>Hadvhy Art</strong></p>
+        <p style="margin-top:24px;font-size:13px;opacity:.85">Powered by <strong>Hadvhy Art</strong></p>
       </div>
     </div>
     <div class="auth-right">
@@ -460,16 +460,11 @@ async function pageTentang() {
       <div style="text-align:center;margin-bottom:20px">
         <div style="width:90px;height:90px;border-radius:50%;background:linear-gradient(135deg,#1a56db,#3b82f6);display:inline-grid;place-items:center;color:#fff;font-size:36px;font-weight:800;margin-bottom:12px">D</div>
         <h2 style="margin:0">DIKO</h2>
-        <p class="mu" style="margin:4px 0 0">Sistem Informasi Terintegrasi untuk Tata Kelola Guru dan Tenaga Kependidikan</p>
+        <p class="mu">Sistem Informasi Terintegrasi untuk Tata Kelola Guru dan Tenaga Kependidikan</p>
       </div>
       <h3>Pengembang</h3>
       <p>Aplikasi ini dikembangkan oleh <strong>Haddie Hadvhy</strong>.</p>
-      <p style="margin-top:12px;font-size:15px">Powered by <strong>Hadvhy Art</strong></p>
-      <dl style="margin-top:16px">
-        <dt>Nama</dt><dd>Haddie Hadvhy</dd>
-        <dt>Peran</dt><dd>Pengembang Aplikasi</dd>
-        <dt>Tahun</dt><dd>2026</dd>
-      </dl>
+      <p style="margin-top:16px;font-size:15px">Powered by <strong>Hadvhy Art</strong></p>
     </div>`;
 }
 
