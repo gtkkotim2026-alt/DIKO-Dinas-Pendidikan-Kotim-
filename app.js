@@ -1861,9 +1861,25 @@ async function onTblClick(e) {
     const nama = refName(npsn);
     const gurus = (await api('list', { entity: 'guru' })).rows.filter(g => g.npsn_sekolah === npsn);
     const html = gurus.length ? `<div class="tw" style="max-height:400px"><table><thead><tr><th>Nama</th><th>NIP</th><th>Status</th><th>Mapel</th></tr></thead><tbody>
-      ${gurus.map(g => `<tr><td>${esc(g.nama)}</td><td>${esc(g.nip||'–')}</td><td>${esc(g.status||'–')}</td><td>${esc(g.mapel||'–')}</td></tr>`).join('')}
+      ${gurus.map(g => `<tr><td><a href="#" class="guru-link" data-id="${esc(g.id)}" style="color:var(--p);font-weight:600;text-decoration:none">${esc(g.nama)}</a></td><td>${esc(g.nip||'–')}</td><td>${esc(g.status||'–')}</td><td>${esc(g.mapel||'–')}</td></tr>`).join('')}
     </tbody></table></div><p class="mu">${gurus.length} guru</p>` : '<div class="empty">Belum ada data guru di sekolah ini.</div>';
-    modal('Daftar Guru — ' + esc(nama), html, async () => {}, { ok: 'Tutup', cancel: 'Batal' });
+    const m = modal('Daftar Guru — ' + esc(nama), html, async () => {}, { ok: 'Tutup', cancel: 'Batal' });
+    setTimeout(() => {
+      $$('.guru-link', m).forEach(link => {
+        link.onclick = e => {
+          e.preventDefault();
+          const guru = gurus.find(g => g.id === link.dataset.id);
+          if (!guru || !S.schema.guru) return;
+          const body = S.schema.guru.fields.filter(f => !f.v).map(f => {
+            if (f.k === 'foto' && guru[f.k]) {
+              return `<dt>${esc(f.l)}</dt><dd><img src="${esc(guru[f.k])}" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid #e0e7ff" alt="Foto"></dd>`;
+            }
+            return `<dt>${esc(f.l)}</dt><dd>${cell(f, guru[f.k])}</dd>`;
+          }).join('');
+          modal('Detail Guru — ' + esc(guru.nama), `<dl>${body}</dl>`, async () => {}, { ok: 'Tutup', cancel: 'Batal' });
+        };
+      });
+    }, 100);
     return;
   }
     if (a === 'undangan') return cetakUndangan(rec);
