@@ -49,7 +49,8 @@ const MENU = [
     { id: 'penandatangan', t: 'Penandatangan Dokumen', ico: '✍️' },
     { id: 'users', t: 'Pengguna', ico: '👤' }
   ]},
-  { id: 'portal_guru', t: 'Portal Guru', ico: '📱' }
+  { id: 'portal_guru', t: 'Portal Guru', ico: '📱' },
+  { id: 'tentang', t: 'Tentang Pengembang', ico: '👨‍💻' }
 ];
 const REG = [
   { k: 'npsn', l: 'NPSN (8 karakter)', r: 1 }, { k: 'nama', l: 'Nama Sekolah', r: 1 },
@@ -195,6 +196,7 @@ function showLogin() {
       <div class="auth-illustration">
         <div class="logo-big">DIKO</div>
         <p>Sistem Informasi Terintegrasi<br>Tata Kelola Guru & Tenaga Kependidikan</p>
+        <p style="margin-top:24px;font-size:13px;opacity:.8">Powered by <strong>Hadvhy Art</strong></p>
       </div>
     </div>
     <div class="auth-right">
@@ -345,6 +347,7 @@ function init(r) {
   $('#pw').onclick = openPw;
   const role = S.user.role;
   const allowed = id => {
+    if (id === 'tentang') return true;
     if (role === 'guru') return id === 'portal_guru' || id === 'mutasi' || id === 'mediasi';
     if (role === 'sekolah') return ['dashboard','sekolah','guru','kepsek','lokasi','rombel','kebutuhan','mutasi'].includes(id);
     if (role === 'pimpinan') return ['dashboard','statistik_user','pegawai','sekolah','guru','kepsek','lokasi','rombel','kebutuhan','mutasi','mediasi','disiplin'].includes(id);
@@ -372,6 +375,7 @@ async function route() {
   try { 
     if (id === 'dashboard') await pageDash();
     else if (id === 'portal_guru') await pagePortalGuru();
+    else if (id === 'tentang') await pageTentang();
     else if (id === 'lokasi') await pageLokasi();
     else if (id === 'kebutuhan') await pageKebutuhan(); else if (id === 'statistik_user') await pageStatistikUser(); else if (id === 'periode_kepsek') await pagePeriodeKepsek(); else if (id === 'pengawas') await pagePengawas(); else if (id === 'penandatangan') await pagePenandatangan(); else if (id === 'wilayah_binaan') await pageWilayahBinaan();
     else if (id.startsWith('sk_')) await pageSK(id);
@@ -447,6 +451,26 @@ function cetakRekomDemo() {
   openPrint('Rekomendasi', `<h2>Rekomendasi Izin Perceraian</h2>
     <p>Berdasarkan hasil mediasi, dengan ini diberikan rekomendasi untuk proses izin perceraian atas nama guru yang bersangkutan.</p>
     <div class="sign"><div></div><div>Kepala Dinas,<br><br><br><br><b>${KADIS.nama}</b><br>NIP ${KADIS.nip}</div></div>`);
+}
+
+async function pageTentang() {
+  $('#ttl').textContent = 'Tentang Pengembang';
+  $('#view').innerHTML = `
+    <div class="card" style="max-width:720px;margin:0 auto">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="width:90px;height:90px;border-radius:50%;background:linear-gradient(135deg,#1a56db,#3b82f6);display:inline-grid;place-items:center;color:#fff;font-size:36px;font-weight:800;margin-bottom:12px">D</div>
+        <h2 style="margin:0">DIKO</h2>
+        <p class="mu" style="margin:4px 0 0">Sistem Informasi Terintegrasi untuk Tata Kelola Guru dan Tenaga Kependidikan</p>
+      </div>
+      <h3>Pengembang</h3>
+      <p>Aplikasi ini dikembangkan oleh <strong>Haddie Hadvhy</strong>.</p>
+      <p style="margin-top:12px;font-size:15px">Powered by <strong>Hadvhy Art</strong></p>
+      <dl style="margin-top:16px">
+        <dt>Nama</dt><dd>Haddie Hadvhy</dd>
+        <dt>Peran</dt><dd>Pengembang Aplikasi</dd>
+        <dt>Tahun</dt><dd>2026</dd>
+      </dl>
+    </div>`;
 }
 
 async function pageDash() {
@@ -1861,25 +1885,9 @@ async function onTblClick(e) {
     const nama = refName(npsn);
     const gurus = (await api('list', { entity: 'guru' })).rows.filter(g => g.npsn_sekolah === npsn);
     const html = gurus.length ? `<div class="tw" style="max-height:400px"><table><thead><tr><th>Nama</th><th>NIP</th><th>Status</th><th>Mapel</th></tr></thead><tbody>
-      ${gurus.map(g => `<tr><td><a href="#" class="guru-link" data-id="${esc(g.id)}" style="color:var(--p);font-weight:600;text-decoration:none">${esc(g.nama)}</a></td><td>${esc(g.nip||'–')}</td><td>${esc(g.status||'–')}</td><td>${esc(g.mapel||'–')}</td></tr>`).join('')}
+      ${gurus.map(g => `<tr><td>${esc(g.nama)}</td><td>${esc(g.nip||'–')}</td><td>${esc(g.status||'–')}</td><td>${esc(g.mapel||'–')}</td></tr>`).join('')}
     </tbody></table></div><p class="mu">${gurus.length} guru</p>` : '<div class="empty">Belum ada data guru di sekolah ini.</div>';
-    const m = modal('Daftar Guru — ' + esc(nama), html, async () => {}, { ok: 'Tutup', cancel: 'Batal' });
-    setTimeout(() => {
-      $$('.guru-link', m).forEach(link => {
-        link.onclick = e => {
-          e.preventDefault();
-          const guru = gurus.find(g => g.id === link.dataset.id);
-          if (!guru || !S.schema.guru) return;
-          const body = S.schema.guru.fields.filter(f => !f.v).map(f => {
-            if (f.k === 'foto' && guru[f.k]) {
-              return `<dt>${esc(f.l)}</dt><dd><img src="${esc(guru[f.k])}" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid #e0e7ff" alt="Foto"></dd>`;
-            }
-            return `<dt>${esc(f.l)}</dt><dd>${cell(f, guru[f.k])}</dd>`;
-          }).join('');
-          modal('Detail Guru — ' + esc(guru.nama), `<dl>${body}</dl>`, async () => {}, { ok: 'Tutup', cancel: 'Batal' });
-        };
-      });
-    }, 100);
+    modal('Daftar Guru — ' + esc(nama), html, async () => {}, { ok: 'Tutup', cancel: 'Batal' });
     return;
   }
     if (a === 'undangan') return cetakUndangan(rec);
