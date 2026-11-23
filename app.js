@@ -458,13 +458,11 @@ async function pageTentang() {
   $('#view').innerHTML = `
     <div class="card" style="max-width:720px;margin:0 auto">
       <div style="text-align:center;margin-bottom:20px">
-        <div style="width:90px;height:90px;border-radius:50%;background:linear-gradient(135deg,#1a56db,#3b82f6);display:inline-grid;place-items:center;color:#fff;font-size:36px;font-weight:800;margin-bottom:12px">D</div>
+        <img src="icon-192.png" alt="diko" style="width:90px;height:90px;border-radius:50%;object-fit:cover;margin-bottom:12px;display:inline-block">
         <h2 style="margin:0">DIKO</h2>
         <p class="mu">Sistem Informasi Terintegrasi untuk Tata Kelola Guru dan Tenaga Kependidikan</p>
       </div>
-      <h3>Pengembang</h3>
-      <p>Aplikasi ini dikembangkan oleh <strong>Haddie Hadvhy</strong>.</p>
-      <p style="margin-top:16px;font-size:15px">Powered by <strong>Hadvhy Art</strong></p>
+      <p style="text-align:center;margin-top:16px;font-size:15px">Powered by <strong>Hadvhy Art</strong></p>
     </div>`;
 }
 
