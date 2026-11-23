@@ -1865,23 +1865,25 @@ async function onTblClick(e) {
     </tbody></table></div><p class="mu">${gurus.length} guru</p>` : '<div class="empty">Belum ada data guru di sekolah ini.</div>';
     const m = modal('Daftar Guru — ' + esc(nama), html, async () => {}, { ok: 'Tutup', cancel: 'Batal' });
     // klik nama guru → buka detail
-    $$('.guru-link', m).forEach(link => {
-      link.onclick = e => {
-        e.preventDefault();
-        const gid = link.dataset.id;
-        const guru = gurus.find(g => g.id === gid);
-        if (!guru) return;
-        const ent = S.schema.guru;
-        if (!ent) return toast('Skema data guru tidak tersedia', 'er');
-        const body = ent.fields.filter(f => !f.v && !f.calc || f.calc).map(f => {
-          if (f.k === 'foto' && guru[f.k]) {
-            return `<dt>${esc(f.l)}</dt><dd><img src="${esc(guru[f.k])}" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid #e0e7ff" alt="Foto"></dd>`;
-          }
-          return `<dt>${esc(f.l)}</dt><dd>${cell(f, guru[f.k])}</dd>`;
-        }).join('');
-        modal('Detail Guru — ' + esc(guru.nama), `<dl>${body}</dl>`, async () => {}, { ok: 'Tutup', cancel: 'Batal' });
-      };
-    });
+    setTimeout(() => {
+      $$('.guru-link', m).forEach(link => {
+        link.onclick = e => {
+          e.preventDefault();
+          const gid = link.dataset.id;
+          const guru = gurus.find(g => g.id === gid);
+          if (!guru) return;
+          const ent = S.schema.guru;
+          if (!ent) return toast('Skema data guru tidak tersedia', 'er');
+          const body = ent.fields.filter(f => !f.v && !f.calc || f.calc).map(f => {
+            if (f.k === 'foto' && guru[f.k]) {
+              return `<dt>${esc(f.l)}</dt><dd><img src="${esc(guru[f.k])}" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid #e0e7ff" alt="Foto"></dd>`;
+            }
+            return `<dt>${esc(f.l)}</dt><dd>${cell(f, guru[f.k])}</dd>`;
+          }).join('');
+          modal('Detail Guru — ' + esc(guru.nama), `<dl>${body}</dl>`, async () => {}, { ok: 'Tutup', cancel: 'Batal' });
+        };
+      });
+    }, 50);
     return;
   }
     if (a === 'undangan') return cetakUndangan(rec);
