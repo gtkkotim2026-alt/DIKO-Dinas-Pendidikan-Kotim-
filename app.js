@@ -470,7 +470,7 @@ async function pageTentang() {
       <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#667085;margin-bottom:6px">
         Pengembang
       </div>
-      <div style="font-size:18px;font-weight:700;color:#101828">Haddie Hadvhy</div>
+      <div style="font-size:18px;font-weight:700;color:#101828">ABDUL HADI, S.Kom</div>
       <p style="margin:6px 0 0;font-size:14px;color:#475467">
         Powered by <strong>Hadvhy Art</strong>
       </p>
