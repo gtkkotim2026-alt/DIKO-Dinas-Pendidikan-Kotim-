@@ -1864,17 +1864,13 @@ async function onTblClick(e) {
       ${gurus.map(g => `<tr><td><a href="#" class="guru-link" data-id="${esc(g.id)}" style="color:var(--p);font-weight:600;text-decoration:none">${esc(g.nama)}</a></td><td>${esc(g.nip||'–')}</td><td>${esc(g.status||'–')}</td><td>${esc(g.mapel||'–')}</td></tr>`).join('')}
     </tbody></table></div><p class="mu">${gurus.length} guru</p>` : '<div class="empty">Belum ada data guru di sekolah ini.</div>';
     const m = modal('Daftar Guru — ' + esc(nama), html, async () => {}, { ok: 'Tutup', cancel: 'Batal' });
-    // klik nama guru → buka detail
     setTimeout(() => {
       $$('.guru-link', m).forEach(link => {
         link.onclick = e => {
           e.preventDefault();
-          const gid = link.dataset.id;
-          const guru = gurus.find(g => g.id === gid);
-          if (!guru) return;
-          const ent = S.schema.guru;
-          if (!ent) return toast('Skema data guru tidak tersedia', 'er');
-          const body = ent.fields.filter(f => !f.v && !f.calc || f.calc).map(f => {
+          const guru = gurus.find(g => g.id === link.dataset.id);
+          if (!guru || !S.schema.guru) return;
+          const body = S.schema.guru.fields.filter(f => !f.v).map(f => {
             if (f.k === 'foto' && guru[f.k]) {
               return `<dt>${esc(f.l)}</dt><dd><img src="${esc(guru[f.k])}" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid #e0e7ff" alt="Foto"></dd>`;
             }
@@ -1883,7 +1879,7 @@ async function onTblClick(e) {
           modal('Detail Guru — ' + esc(guru.nama), `<dl>${body}</dl>`, async () => {}, { ok: 'Tutup', cancel: 'Batal' });
         };
       });
-    }, 50);
+    }, 100);
     return;
   }
     if (a === 'undangan') return cetakUndangan(rec);
