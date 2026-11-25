@@ -18,6 +18,8 @@ const MENU = [
   { g: 'Data Kepegawaian', items: [
     { id: 'pegawai', t: 'Pegawai Disdik', ico: '👥' },
     { id: 'guru', t: 'Data Guru', ico: '👨‍🏫' },
+    { id: 'riwayat_guru', t: 'Riwayat Perubahan Guru', ico: '📜' },
+    { id: 'sinkron_dapodik', t: 'Sinkronisasi Dapodik', ico: '🔄' },
     { id: 'kepsek', t: 'Data Kepala Sekolah', ico: '👨‍💼' }
   ]},
   { g: 'Satuan Pendidikan', items: [
@@ -353,7 +355,7 @@ function init(r) {
     if (role === 'pimpinan') return ['dashboard','statistik_user','pegawai','sekolah','guru','kepsek','lokasi','rombel','kebutuhan','mutasi','mediasi','disiplin'].includes(id);
     // superadmin & admin_dinas
     if (id.startsWith('sk_')) return true;
-    const custom = ['penandatangan','periode_kepsek','pengawas','wilayah_binaan','pendaftaran','users'];
+    const custom = ['penandatangan','periode_kepsek','pengawas','wilayah_binaan','pendaftaran','users','riwayat_guru','sinkron_dapodik'];
     if (custom.includes(id)) return true;
     return id === 'dashboard' || id === 'statistik_user' || (id === 'lokasi' ? !!S.schema.sekolah : id === 'kebutuhan' ? !!S.schema.rombel : !!S.schema[id]);
   };
@@ -377,7 +379,7 @@ async function route() {
     else if (id === 'portal_guru') await pagePortalGuru();
     else if (id === 'tentang') await pageTentang();
     else if (id === 'lokasi') await pageLokasi();
-    else if (id === 'kebutuhan') await pageKebutuhan(); else if (id === 'statistik_user') await pageStatistikUser(); else if (id === 'periode_kepsek') await pagePeriodeKepsek(); else if (id === 'pengawas') await pagePengawas(); else if (id === 'penandatangan') await pagePenandatangan(); else if (id === 'wilayah_binaan') await pageWilayahBinaan();
+    else if (id === 'kebutuhan') await pageKebutuhan(); else if (id === 'statistik_user') await pageStatistikUser(); else if (id === 'periode_kepsek') await pagePeriodeKepsek(); else if (id === 'pengawas') await pagePengawas(); else if (id === 'penandatangan') await pagePenandatangan(); else if (id === 'wilayah_binaan') await pageWilayahBinaan(); else if (id === 'riwayat_guru') await pageRiwayatGuru(); else if (id === 'sinkron_dapodik') await pageSinkronDapodik();
     else if (id.startsWith('sk_')) await pageSK(id);
     else await pageEntity(id);
   }
@@ -2317,6 +2319,177 @@ function drawMap(list) {
 }
 
 /* ---------- mulai ---------- */
+
+async function pageRiwayatGuru() {
+  $('#ttl').textContent = 'Riwayat Perubahan Data Guru';
+  $('#view').innerHTML = '<div class="card mu">Memuat riwayat…</div>';
+  try {
+    const r = await api('listRiwayatGuru');
+    const rows = r.rows || [];
+    const jenisOpts = ['', 'Baru', 'Update', 'Mutasi Sekolah', 'Perubahan Mapel', 'Perubahan Status', 'Hilang / Potensi Pensiun', 'Lainnya'];
+    let html = `<div class="card">
+      <div class="tools">
+        <input type="search" id="rq" placeholder="Cari nama / NIP…" style="max-width:240px">
+        <select id="rj"><option value="">Semua Jenis</option>${jenisOpts.filter(Boolean).map(j => `<option>${esc(j)}</option>`).join('')}</select>
+        <div class="sp"></div>
+        <button class="btn sec" id="deteksiHilang">Deteksi Guru Hilang</button>
+        <button class="btn sec" id="exportR">Export CSV</button>
+      </div>
+      <div class="tw" id="rtbl">
+        ${rows.length ? `<table><thead><tr>
+          <th>Waktu</th><th>Nama</th><th>NIP</th><th>Jenis</th><th>Sekolah Asal</th><th>Sekolah Tujuan</th><th>Mapel Lama → Baru</th><th>Keterangan</th><th>Aksi</th>
+        </tr></thead><tbody>
+        ${rows.map(x => `<tr data-id="${esc(x.id)}">
+          <td>${esc((x.dibuat_pada||'').slice(0,16))}</td>
+          <td>${esc(x.nama)}</td>
+          <td>${esc(x.nip||'')}</td>
+          <td><span class="badge ${x.jenis_perubahan.includes('Hilang')?'er':x.jenis_perubahan==='Mutasi Sekolah'?'wr':'ok'}">${esc(x.jenis_perubahan)}</span></td>
+          <td>${esc(x.sekolah_asal||'–')}</td>
+          <td>${esc(x.sekolah_tujuan||'–')}</td>
+          <td>${esc(x.mapel_lama||'–')} → ${esc(x.mapel_baru||'–')}</td>
+          <td style="max-width:220px;white-space:normal">${esc(x.keterangan||'')}</td>
+          <td class="act"><button class="btn sm sec" data-edit="${esc(x.id)}">Ubah Keterangan</button></td>
+        </tr>`).join('')}
+        </tbody></table>` : '<div class="empty">Belum ada riwayat perubahan.</div>'}
+      </div>
+    </div>`;
+    $('#view').innerHTML = html;
+
+    const filter = () => {
+      const q = $('#rq').value.toLowerCase();
+      const j = $('#rj').value;
+      $$('#rtbl tbody tr').forEach(tr => {
+        const txt = tr.textContent.toLowerCase();
+        const show = (!q || txt.includes(q)) && (!j || txt.includes(j.toLowerCase()));
+        tr.style.display = show ? '' : 'none';
+      });
+    };
+    $('#rq').oninput = filter;
+    $('#rj').onchange = filter;
+
+    $('#deteksiHilang').onclick = async () => {
+      const bulan = prompt('Bulan Dapodik (contoh: 11 atau November):');
+      if (!bulan) return;
+      const tahun = prompt('Tahun Dapodik (contoh: 2026):');
+      if (!tahun) return;
+      if (!confirm(`Deteksi guru yang tidak tersinkron pada ${bulan}/${tahun}?\nGuru yang tidak muncul akan dicatat sebagai "Hilang / Potensi Pensiun".`)) return;
+      try {
+        const res = await api('deteksiGuruHilang', { bulan, tahun });
+        toast(`Berhasil mencatat ${res.created || 0} guru hilang`, 'ok');
+        pageRiwayatGuru();
+      } catch (e) { toast(e.message, 'er'); }
+    };
+
+    $('#exportR').onclick = () => {
+      const cols = ['dibuat_pada','nama','nip','nik','nuptk','jenis_perubahan','sekolah_asal','sekolah_tujuan','mapel_lama','mapel_baru','status_lama','status_baru','keterangan','sumber','bulan_dapodik','tahun_dapodik'];
+      const csv = [cols.join(',')].concat(rows.map(r => cols.map(c => '"' + String(r[c]||'').replace(/"/g,'""') + '"').join(','))).join('\n');
+      const a = document.createElement('a');
+      a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+      a.download = 'riwayat-perubahan-guru.csv';
+      a.click();
+    };
+
+    $('#view').onclick = async e => {
+      const btn = e.target.closest('[data-edit]');
+      if (!btn) return;
+      const id = btn.dataset.edit;
+      const rec = rows.find(x => x.id === id);
+      if (!rec) return;
+      const m = modal('Ubah Keterangan', `
+        <div class="fg">
+          <div class="full"><label>Nama</label><input value="${esc(rec.nama)}" disabled></div>
+          <div class="full"><label>Jenis Perubahan</label>
+            <select id="jns">${jenisOpts.filter(Boolean).map(j => `<option ${j===rec.jenis_perubahan?'selected':''}>${esc(j)}</option>`).join('')}</select>
+          </div>
+          <div class="full"><label>Keterangan</label><textarea id="ket" rows="4">${esc(rec.keterangan||'')}</textarea></div>
+        </div>`, async () => {
+          await api('updateRiwayatGuru', { id, jenis_perubahan: $('#jns').value, keterangan: $('#ket').value });
+          toast('Keterangan diperbarui', 'ok');
+          pageRiwayatGuru();
+        });
+    };
+  } catch (e) {
+    $('#view').innerHTML = `<div class="card err">${esc(e.message)}</div>`;
+  }
+}
+
+
+async function pageSinkronDapodik() {
+  $('#ttl').textContent = 'Sinkronisasi Dapodik';
+  $('#view').innerHTML = `
+    <div class="dash-welcome" style="margin-bottom:20px">
+      <div>
+        <div class="eyebrow">INTEGRASI DAPODIK</div>
+        <h2>Sinkronisasi Data dari Dapodik</h2>
+        <p>Tarik data resmi Dapodik ke DIKO secara berkala</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Cara Sinkronisasi (Rekomendasi)</h3>
+      <ol style="line-height:1.8;margin:12px 0 0 20px">
+        <li>Buka aplikasi <b>Dapodik</b> di komputer sekolah / server dinas</li>
+        <li>Login sebagai Operator</li>
+        <li>Masuk menu <b>GTK</b> → <b>Unduh</b> → pilih format Excel (Individu Guru / PTK)</li>
+        <li>Unduh juga data <b>Sekolah</b> dan <b>Rombel</b> jika diperlukan</li>
+        <li>Di DIKO, gunakan tombol di bawah untuk mengimpor file Excel tersebut</li>
+        <li>Setelah import selesai, buka <b>Riwayat Perubahan Guru</b> untuk melihat mutasi, perubahan mapel, dan guru yang hilang (potensi pensiun)</li>
+      </ol>
+      <p class="mu" style="margin-top:12px">Catatan: Dapodik tidak menyediakan API publik nasional yang bisa diakses langsung dari Google Apps Script. Metode Excel adalah cara resmi dan paling stabil.</p>
+    </div>
+
+    <div class="dash-kpis" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+      <div class="kpi-card" style="cursor:pointer" onclick="location.hash='#/guru';setTimeout(()=>openImport(),600)">
+        <div class="kpi-icon">👨‍🏫</div>
+        <div><b>Import Guru</b><small>Dari Excel Dapodik GTK</small></div>
+      </div>
+      <div class="kpi-card" style="cursor:pointer" onclick="location.hash='#/sekolah';setTimeout(()=>openImport(),600)">
+        <div class="kpi-icon">🏫</div>
+        <div><b>Import Sekolah</b><small>Data satuan pendidikan</small></div>
+      </div>
+      <div class="kpi-card" style="cursor:pointer" onclick="location.hash='#/rombel';setTimeout(()=>openImport(),600)">
+        <div class="kpi-icon">📚</div>
+        <div><b>Import Rombel</b><small>Data rombongan belajar</small></div>
+      </div>
+      <div class="kpi-card" style="cursor:pointer" onclick="location.hash='#/riwayat_guru'">
+        <div class="kpi-icon">📜</div>
+        <div><b>Lihat Riwayat</b><small>Mutasi & perubahan data</small></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Deteksi Perubahan Setelah Import</h3>
+      <p>Setelah mengimpor data guru terbaru, jalankan deteksi untuk mencatat guru yang tidak muncul (potensi pensiun atau mutasi keluar).</p>
+      <div class="fg" style="max-width:480px">
+        <div><label>Bulan Dapodik</label><input id="dbulan" placeholder="11 atau November"></div>
+        <div><label>Tahun Dapodik</label><input id="dtahun" placeholder="2026"></div>
+      </div>
+      <p style="margin-top:12px"><button class="btn" id="btnDeteksi">Jalankan Deteksi Guru Hilang</button></p>
+      <div id="deteksiResult"></div>
+    </div>
+
+    <div class="card">
+      <h3>WebService Dapodik (Opsional / Lanjutan)</h3>
+      <p class="mu">Jika Anda memiliki akses ke server Dapodik lokal yang bisa dijangkau (bukan localhost), token WebService bisa digunakan. Saat ini DIKO menggunakan metode Excel karena lebih aman dan tidak memerlukan koneksi langsung ke komputer sekolah.</p>
+      <p>Token WebService dibuat di Dapodik → <b>Pengaturan → Web Service</b> (sama seperti yang dipakai e-Rapor).</p>
+    </div>
+  `;
+
+  $('#btnDeteksi').onclick = async () => {
+    const bulan = $('#dbulan').value.trim();
+    const tahun = $('#dtahun').value.trim();
+    if (!bulan || !tahun) return toast('Isi bulan dan tahun', 'wr');
+    if (!confirm('Deteksi guru yang tidak tersinkron pada periode ini?')) return;
+    try {
+      const res = await api('deteksiGuruHilang', { bulan, tahun });
+      $('#deteksiResult').innerHTML = `<div class="msg ok" style="margin-top:12px">Berhasil mencatat <b>${res.created || 0}</b> guru yang hilang / potensi pensiun. Lihat di menu Riwayat Perubahan Guru.</div>`;
+      toast('Deteksi selesai', 'ok');
+    } catch (e) {
+      toast(e.message, 'er');
+    }
+  };
+}
+
 (async function boot() {
   showLogin(); // tampilkan dulu agar terasa cepat
   const tk = sessionStorage.getItem('tk');
