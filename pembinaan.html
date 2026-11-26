@@ -56,7 +56,7 @@ button.ghost{background:#eaf1ff;color:var(--ac);padding:6px 12px;font-size:12px;
 <input id="imp" type="file" accept=".json" hidden onchange="imp(this)">
 <div id="lgm" class="ov" hidden><div class="card" style="width:min(400px,92vw)"><h2>Masuk ke DIKO</h2><p class="sub">Gunakan akun DIKO (Admin Pembinaan / Admin Dinas / Super Admin) untuk mengambil data guru dan pegawai.</p><label>Username<input id="gu" autocomplete="username"></label><label>Password<input id="gp" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')loginDiko()"></label><div class="act"><button onclick="loginDiko()">Masuk</button><button class="ghost" onclick="$('#lgm').hidden=true">Batal</button></div></div></div>
 <div id="print"></div>
-<div id="pv" hidden><div class="pvh"><b id="pvt"></b><div class="act"><button id="pvr" class="ghost" onclick="cetakDx(PV.k,PV.m,PV.r,1)" hidden>↻ Buat ulang PDF</button><button id="pvu" class="ghost" onclick="pvDl()" hidden>⬇ PDF</button><button id="pvw" class="ghost" onclick="wd(PV.k,PV.m,PV.nm)">⬇ Word</button><button onclick="pvPrint()">🖨 Cetak</button><button class="ghost" onclick="pvClose()">Tutup</button></div></div><div id="pvb"></div></div>
+<div id="pv" hidden><div class="pvh"><b id="pvt"></b><div class="act"><button id="pvr" class="ghost" onclick="cetakDx(PV.k,PV.m,PV.r,1)">↻ Buat Ulang Dokumen</button><button id="pvu" class="ghost" onclick="pvDl()" hidden>⬇ PDF</button><button id="pvw" class="ghost" onclick="wd(PV.k,PV.m,PV.nm)">⬇ Word</button><button onclick="pvPrint()">🖨 Cetak</button><button class="ghost" onclick="pvClose()">Tutup</button></div></div><div id="pvb"></div></div>
 <script>
 /* Pengaturan ada di config.js */
 const C=window.APP_CONFIG||{},PT=C.PENANDATANGAN||{},PW=C.PEWAWANCARA||{},API_URL=C.API_URL;
@@ -185,7 +185,7 @@ const j=await r.json();if(!j.ok){if(j.expired){GR.tk=null;sessionStorage.removeI
 const sekNama=n=>(GR.refs.find(x=>String(x.npsn).toUpperCase()===String(n||'').toUpperCase())||{}).nama||'';
 const sekGuru=x=>x.sekolah||x.nama_sekolah||sekNama(x.npsn_sekolah||x.npsn)||x.tempat_tugas||x.unit_kerja||'';
 async function loadGuru(){if(!GR.tk||GR.rows)return;try{GR.rows=(await api('list',{entity:'guru'})).rows||[];GR.err=''}catch(e){GR.err=e.message}try{GR.peg=(await api('list',{entity:'pegawai'})).rows||[]}catch(e){GR.peg=null}render()}
-async function loginDiko(){try{const r=await api('login',{username:g('gu'),password:g('gp')});GR.tk=r.token;GR.user=r.user||null;GR.refs=r.refs||[];sessionStorage.setItem('pdtk',r.token);sessionStorage.setItem('pdus',JSON.stringify(GR.user));$('#lgm').hidden=true;$('#gp').value='';sessionStorage.setItem('pdrf',JSON.stringify(GR.refs));GR.rows=null;GR.err='';render();loadGuru()}catch(e){alert(e.message)}}
+async function loginDiko(){try{const r=await api('login',{username:g('gu'),password:g('gp')});GR.tk=r.token;GR.user=r.user||null;GR.refs=r.refs||[];sessionStorage.setItem('pdtk',r.token);sessionStorage.setItem('pdus',JSON.stringify(GR.user));$('#lgm').hidden=true;$('#gp').value='';sessionStorage.setItem('pdrf',JSON.stringify(GR.refs));GR.rows=null;GR.err='';render();loadGuru();loadTpl();loadFromServer()}catch(e){alert(e.message)}}
 async function logoutDiko(){try{await api('logout')}catch(e){}
 GR.user=null;GR.tk=null;GR.rows=null;GR.peg=null;['pdus','pdtk','pdrf','tk'].forEach(k=>sessionStorage.removeItem(k));location.replace('index.html')}
 function cariGuru(q){q=q.trim().toLowerCase();const b=$('#gr');if(q.length<2||!GR.rows){b.innerHTML='';return}
@@ -321,6 +321,6 @@ async function loadFromServer() {
     }
   } catch (e) {}
 }
-if(GR.tk&&!GR.user)api('bootstrap').then(r=>{GR.user=r.user||null;GR.refs=r.refs||[];render();loadFromServer()}).catch(()=>{});
-loadFromServer();
+if(GR.tk&&!GR.user)api('bootstrap').then(r=>{GR.user=r.user||null;GR.refs=r.refs||[];render();loadFromServer();loadTpl()}).catch(()=>{});
+loadFromServer();loadTpl();
 </script></body></html>
