@@ -8,7 +8,8 @@ const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const ROLE = { superadmin: 'Super Admin', admin_dinas: 'Admin Dinas', pimpinan: 'Pimpinan', guru: 'Guru', sekolah: 'Sekolah' };
+const ROLE = { superadmin: 'Super Admin', admin_dinas: 'Admin Dinas', pimpinan: 'Pimpinan', guru: 'Guru', sekolah: 'Sekolah', admin_pembinaan: 'Admin Pembinaan', admin_mediasi: 'Admin Mediasi', admin_mutasi: 'Admin Mutasi' };
+const isAdm = () => !!S.user && ['superadmin', 'admin_dinas'].includes(S.user.role);
 const COL = { TK: '#f79009', SD: '#1b5fc4', SMP: '#12805c' };
 const MENU = [
   { g: 'Utama', items: [
@@ -51,7 +52,13 @@ const MENU = [
     { id: 'penandatangan', t: 'Penandatangan Dokumen', ico: '✍️' },
     { id: 'users', t: 'Pengguna', ico: '👤' }
   ]},
-  { id: 'portal_guru', t: 'Portal Guru', ico: '📱' },
+  { g: 'Modul', items: [
+    { id: 'modul_pembinaan', t: 'Modul Pembinaan', ico: '🛡️' },
+    { id: 'modul_mediasi', t: 'Modul Mediasi', ico: '⚖️' },
+    { id: 'modul_mutasi', t: 'Modul Mutasi', ico: '🔄' },
+    { id: 'portal_guru', t: 'Modul Guru', ico: '📱' },
+    { id: 'portal_sekolah', t: 'Modul Sekolah', ico: '🏫' }
+  ]},
   { id: 'tentang', t: 'Tentang Pengembang', ico: '👨‍💻' }
 ];
 const REG = [
@@ -322,14 +329,14 @@ async function doLogout(expired) {
 
 /* ---------- shell ---------- */
 /* admin_dinas hanya memakai modul Pembinaan Disiplin (halaman terpisah, sesi dibawa lewat sessionStorage) */
-function goPembinaan(r) {
+function goPembinaan(r, keep) {
   sessionStorage.setItem('pdtk', S.token || r.token || '');
   sessionStorage.setItem('pdus', JSON.stringify(r.user || {}));
   sessionStorage.setItem('pdrf', JSON.stringify(r.refs || []));
-  location.replace('pembinaan.html');
+  if (keep) location.href = 'pembinaan.html'; else location.replace('pembinaan.html');
 }
 function init(r) {
-  if (r.user && r.user.role === 'admin_dinas') { goPembinaan(r); return; }
+  if (r.user && r.user.role === 'admin_pembinaan') { goPembinaan(r); return; }
   S.user = r.user; S.schema = r.schema; S.refs = r.refs;
   $('#root').innerHTML = `<div class="app"><aside id="side">
     <div class="brand">
@@ -356,37 +363,32 @@ function init(r) {
   $('#out').onclick = () => doLogout(false);
   $('#pw').onclick = openPw;
   const role = S.user.role;
-  const allowed = id => {
-    if (id === 'tentang') return true;
-    if (role === 'guru') return id === 'portal_guru' || id === 'mutasi' || id === 'mediasi';
-    if (role === 'sekolah') return ['dashboard','sekolah','guru','kepsek','lokasi','rombel','kebutuhan','mutasi'].includes(id);
-    if (role === 'pimpinan') return ['dashboard','statistik_user','pegawai','sekolah','guru','kepsek','lokasi','rombel','kebutuhan','mutasi','mediasi','disiplin'].includes(id);
-    // superadmin & admin_dinas
-    if (id.startsWith('sk_')) return true;
-    const custom = ['penandatangan','periode_kepsek','pengawas','wilayah_binaan','pendaftaran','users','riwayat_guru','sinkron_dapodik'];
-    if (custom.includes(id)) return true;
-    return id === 'dashboard' || id === 'statistik_user' || (id === 'lokasi' ? !!S.schema.sekolah : id === 'kebutuhan' ? !!S.schema.rombel : !!S.schema[id]);
-  };
+  const menus = new Set(S.user.menus || []);   // dari server (matriks akses di Code.gs)
+  const allowed = id => menus.has(id) || (role === 'guru' && (id === 'mutasi' || id === 'mediasi'));  // layanan di dalam Modul Guru
   const link = i => `<a href="#/${i.id}" data-id="${i.id}"><span class="nav-ico">${i.ico || '•'}</span><span class="nav-label">${esc(i.t)}</span></a>`;
   $('#nav').innerHTML = MENU.map(m => {
-    if (m.g) { const its = m.items.filter(i => allowed(i.id)); return its.length ? `<div class="grp">${esc(m.g)}</div>` + its.map(link).join('') : ''; }
-    return allowed(m.id) ? link(m) : '';
+    if (m.g) { const its = m.items.filter(i => menus.has(i.id)); return its.length ? `<div class="grp">${esc(m.g)}</div>` + its.map(link).join('') : ''; }
+    return menus.has(m.id) ? link(m) : '';
   }).join('');
   S.allowed = allowed;
   route();
 }
 async function route() {
   if (!S.user) return;
-  let id = location.hash.replace('#/', '') || 'dashboard';
-  if (!S.allowed(id)) id = S.user.role === 'guru' ? 'portal_guru' : 'dashboard';
+  let id = location.hash.replace('#/', '') || S.user.home || 'dashboard';
+  if (!S.allowed(id)) id = S.user.home || 'dashboard';
   $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.id === id));
   document.body.classList.remove('nav-open');
   if (MAP) { MAP.remove(); MAP = null; }
   try { 
-    if (id === 'dashboard') await pageDash();
+    if (id === 'modul_pembinaan') { goPembinaan({ token: S.token, user: S.user, refs: S.refs }, true); return; }
+    else if (id === 'dashboard') await pageDash();
     else if (id === 'portal_guru') await pagePortalGuru();
     else if (id === 'tentang') await pageTentang();
     else if (id === 'disiplin') await pagePembinaan();
+    else if (id === 'modul_mediasi') await pageEntity('mediasi');
+    else if (id === 'modul_mutasi') await pageEntity('mutasi');
+    else if (id === 'portal_sekolah') await pagePortalSekolah();
     else if (id === 'lokasi') await pageLokasi();
     else if (id === 'kebutuhan') await pageKebutuhan(); else if (id === 'statistik_user') await pageStatistikUser(); else if (id === 'periode_kepsek') await pagePeriodeKepsek(); else if (id === 'pengawas') await pagePengawas(); else if (id === 'penandatangan') await pagePenandatangan(); else if (id === 'wilayah_binaan') await pageWilayahBinaan(); else if (id === 'riwayat_guru') await pageRiwayatGuru(); else if (id === 'sinkron_dapodik') await pageSinkronDapodik();
     else if (id.startsWith('sk_')) await pageSK(id);
@@ -1544,8 +1546,8 @@ async function pagePeriodeKepsek() {
   const html = `<div class="card">
     <div class="tools">
       <div class="sp"></div>
-      <button class="btn sec" id="impPeriode">Impor Excel</button>
-      <button class="btn" id="addPeriode">+ Tambah</button>
+      ${isAdm() ? '<button class="btn sec" id="impPeriode">Impor Excel</button>' : ''}
+      ${isAdm() ? '<button class="btn" id="addPeriode">+ Tambah</button>' : ''}
     </div>
     ${rows.length ? `<div class="tw" style="overflow-x:auto"><table><thead><tr>
       <th>No</th><th>Nama</th><th>NIP</th><th>Jabatan</th><th>Asal Sekolah</th><th>Kecamatan</th>
@@ -1571,8 +1573,8 @@ async function pagePeriodeKepsek() {
   </div>`;
   $('#view').innerHTML = html;
   addSearchPrint('#view', '#view table');
-  $('#impPeriode').onclick = () => openImportPeriode();
-  $('#addPeriode').onclick = () => toast('Form tambah periode akan ditambahkan.', 'ok');
+  if ($('#impPeriode')) $('#impPeriode').onclick = () => openImportPeriode();
+  if ($('#addPeriode')) $('#addPeriode').onclick = () => toast('Form tambah periode akan ditambahkan.', 'ok');
   document.querySelectorAll('[data-edit-periode]').forEach(btn => {
     btn.onclick = () => toast('Form edit periode akan dibuka.', 'ok');
   });
@@ -1641,7 +1643,7 @@ async function pageWilayahBinaan() {
   try { rows = (await api('listWilayah')).rows || []; } catch(e) {}
   $('#view').innerHTML = `<div class="card">
     <div class="tools"><div class="sp"></div>
-      <button class="btn sec" id="impWilayah">Impor Excel</button>
+      ${isAdm() ? '<button class="btn sec" id="impWilayah">Impor Excel</button>' : ''}
     </div>
     ${rows.length ? `<div class="tw" style="overflow-x:auto"><table><thead><tr>
       <th>No</th><th>Nama Pengawas</th><th>NIP</th><th>NPSN</th><th>Nama Sekolah</th><th>Jenjang</th><th>Kecamatan</th>
@@ -1650,7 +1652,7 @@ async function pageWilayahBinaan() {
     </tbody></table></div>` : '<div class="empty">Belum ada data. Gunakan Impor Excel.</div>'}
   </div>`;
   addSearchPrint('#view', '#view table');
-  $('#impWilayah').onclick = openImportWilayah;
+  if ($('#impWilayah')) $('#impWilayah').onclick = openImportWilayah;
 }
 
 function openImportWilayah() {
@@ -1715,8 +1717,8 @@ async function pagePengawas() {
   const html = `<div class="card">
     <div class="tools">
       <div class="sp"></div>
-      <button class="btn sec" id="impPengawas">Impor Excel</button>
-      <button class="btn" id="addPengawas">+ Tambah</button>
+      ${isAdm() ? '<button class="btn sec" id="impPengawas">Impor Excel</button>' : ''}
+      ${isAdm() ? '<button class="btn" id="addPengawas">+ Tambah</button>' : ''}
     </div>
     ${rows.length ? `<div class="tw"><table><thead><tr>
       <th>No</th><th>Nama</th><th>NUPTK</th><th>NIP</th><th>Status Keaktifan</th><th>Jabatan</th>
@@ -1726,15 +1728,15 @@ async function pagePengawas() {
       <td>${esc(r.nama||'–')}</td>
       <td>${esc(r.nuptk||'–')}</td>
       <td>${esc(r.nip||'–')}</td>
-      <td><select data-id="${esc(r.id)}" class="st-pengawas">${statusOpt(r.status||'Aktif')}</select></td>
+      <td><select data-id="${esc(r.id)}" class="st-pengawas"${isAdm() ? '' : ' disabled'}>${statusOpt(r.status||'Aktif')}</select></td>
       <td>${esc(r.jabatan||'–')}</td>
     </tr>`).join('')}
     </tbody></table></div>` : '<div class="empty">Belum ada data pengawas. Gunakan Impor Excel.</div>'}
   </div>`;
   $('#view').innerHTML = html;
   addSearchPrint('#view', '#view table');
-  $('#impPengawas').onclick = () => openImportPengawas();
-  $('#addPengawas').onclick = () => openFormPengawas();
+  if ($('#impPengawas')) $('#impPengawas').onclick = () => openImportPengawas();
+  if ($('#addPengawas')) $('#addPengawas').onclick = () => openFormPengawas();
   document.querySelectorAll('.st-pengawas').forEach(sel => {
     sel.onchange = async () => {
       await api('updatePengawasStatus', { id: sel.dataset.id, status: sel.value });
@@ -2500,7 +2502,32 @@ async function pageSinkronDapodik() {
 }
 
 
-/* ---------- Pembinaan Disiplin (hanya baca: superadmin & pimpinan) ---------- */
+/* ---------- Modul Sekolah ---------- */
+async function pagePortalSekolah() {
+  $('#ttl').textContent = 'Modul Sekolah';
+  const u = S.user, has = id => (u.menus || []).includes(id);
+  const items = [
+    ['sekolah', 'Data Sekolah', '🏫', 'Profil dan data satuan pendidikan'],
+    ['guru', 'Data Guru', '👨‍🏫', 'Guru dan tenaga kependidikan'],
+    ['kepsek', 'Data Kepala Sekolah', '👨‍💼', 'Data kepala sekolah'],
+    ['rombel', 'Data Rombel', '📚', 'Rombongan belajar dan jumlah siswa'],
+    ['lokasi', 'Lokasi Sekolah', '📍', 'Titik koordinat sekolah'],
+    ['dashboard', 'Dashboard', '📊', 'Rekap pendidikan negeri']
+  ].filter(x => has(x[0]));
+  $('#view').innerHTML = `<div style="max-width:560px;margin:0 auto">
+    <div class="card" style="text-align:center;padding:24px 16px">
+      <div style="font-size:40px">🏫</div>
+      <h2 style="margin:8px 0 4px">${esc(u.sekolah_nama || 'Modul Sekolah')}</h2>
+      <div class="mu">${u.npsn ? 'NPSN ' + esc(u.npsn) : 'Ringkasan layanan untuk akun sekolah'}</div>
+    </div>
+    <h3>Layanan Sekolah</h3>
+    <div class="card" style="padding:0;overflow:hidden">
+      ${items.map((x, i) => `<a href="#/${x[0]}" style="display:flex;align-items:center;padding:16px;text-decoration:none;color:inherit;${i ? 'border-top:1px solid #eee' : ''}">
+        <span style="font-size:24px;margin-right:12px">${x[2]}</span><div><b>${esc(x[1])}</b><div class="mu" style="font-size:12px">${esc(x[3])}</div></div></a>`).join('')}
+    </div></div>`;
+}
+
+/* ---------- Pembinaan Disiplin (hanya baca) ---------- */
 async function pagePembinaan() {
   $('#ttl').textContent = 'Pembinaan Disiplin';
   $('#view').innerHTML = '<div class="card mu">Memuat data…</div>';
