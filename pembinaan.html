@@ -186,7 +186,17 @@ const sekNama=n=>(GR.refs.find(x=>String(x.npsn).toUpperCase()===String(n||'').t
 const sekGuru=x=>x.sekolah||x.nama_sekolah||sekNama(x.npsn_sekolah||x.npsn)||x.tempat_tugas||x.unit_kerja||'';
 async function loadGuru(){
   if(!GR.tk) return;
-  if(GR.rows && GR.peg) return;
+  const CACHE_KEY = 'pd_guru_peg';
+  const CACHE_TTL = 15 * 24 * 60 * 60 * 1000; // 15 hari
+  try{
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+    if(cached && (Date.now() - cached.t < CACHE_TTL) && cached.guru && cached.peg){
+      GR.rows = cached.guru;
+      GR.peg = cached.peg;
+      render();
+      return;
+    }
+  }catch(e){}
   try{
     const [g, p] = await Promise.all([
       api('list', {entity:'guru'}),
@@ -194,6 +204,7 @@ async function loadGuru(){
     ]);
     GR.rows = g.rows || [];
     GR.peg = p.rows || [];
+    localStorage.setItem(CACHE_KEY, JSON.stringify({t:Date.now(), guru:GR.rows, peg:GR.peg}));
     GR.err = '';
   }catch(e){
     GR.err = e.message;
@@ -211,7 +222,7 @@ const v={nm:x.nama,nip:x.nip||x.nuptk||x.nik,pk:x.golongan||x.pangkat||x.pangkat
 const miss=[];for(const k in v){const el=$('#'+k);if(!el)continue;el.value=v[k]||'';if(!v[k]&&k!='st')miss.push(el.closest('label').firstChild.textContent.trim())}
 $('#gr').innerHTML=`<div class="empty" style="color:#166534">✔ Terisi dari database: <b>${h(x.nama)}</b>${miss.length?`<br><span style="color:#b45309">Belum ada di database, isi manual: ${miss.join(', ')}</span>`:''}</div>`;$('#gq').value=''}
 const pegBox=p=>`<input id="${p}q" placeholder="🔎 Cari pegawai Disdik (nama atau NIP)…" oninput="cariPeg('${p}',this.value)" autocomplete="off" style="margin-bottom:6px"><div id="${p}r"></div><small style="color:var(--mu)">${GR.peg?GR.peg.length+' pegawai':'Memuat pegawai…'}</small>`;
-function cariPeg(p,q){q=q.trim().toLowerCase();const b=$('#'+p+'r');if(q.length<2){b.innerHTML='';return}
+function cariPeg(p,q){q=q.trim().toLowerCase();const b=$('#'+p+'r');if(q.length<2||!GR.peg){b.innerHTML='';return}
 const m=GR.peg.filter(x=>(x.nama||'').toLowerCase().includes(q)||String(x.nip||'').includes(q)).slice(0,6);
 b.innerHTML=m.length?m.map(x=>`<div class="row"><div><b>${h(x.nama)}</b><small>${h(x.nip||'tanpa NIP')} · ${h(x.jabatan||'')}</small></div><div><button class="ghost" onclick="pilihPeg('${p}','${x.id}')">Pilih</button></div></div>`).join(''):'<div class="empty">Tidak ditemukan. Isi manual di bawah.</div>'}
 function pilihPeg(p,id){const x=GR.peg.find(a=>a.id==id);if(!x)return;$('#'+p+'n').value=x.nama||'';$('#'+p+'j').value=x.jabatan||'';$('#'+p+'p').value=x.nip||'';$('#'+p+'r').innerHTML='';$('#'+p+'q').value=''}
