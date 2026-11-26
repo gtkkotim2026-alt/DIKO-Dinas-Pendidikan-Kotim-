@@ -278,8 +278,8 @@ const kt=()=>({kota:DB.ttd.kota});
 const mPg=r=>({...lm(L(r.lp)),...tm(),...kt(),no_surat:r.no,tgl_surat:tgl(r.ts),panggilan_ke:r.ke,hari_tgl:hari(r.ht),jam:r.jm,tempat:r.tm});
 const mBap=r=>({...lm(L(r.lp)),...tm(),...kt(),tgl_surat:tgl(r.ht),hari_tgl:hari(r.ht),tempat:r.tm,pw_nama:r.pw.n,pw_nip:r.pw.nip,pw_jabatan:r.pw.j,s1_nama:r.s1.n,s1_nip:r.s1.nip,s1_jabatan:r.s1.j,s2_nama:r.s2.n,s2_nip:r.s2.nip,s2_jabatan:r.s2.j,daftar_qa:r.qa.map((x,i)=>`${i+1}. Pertanyaan : ${x.q}\n    Jawaban    : ${x.a||'-'}`).join('\n\n')});
 const mPl=r=>({...lm(L(r.lp)),...tm(),...kt(),no_surat:r.no,tgl_surat:tgl(r.ts),lampiran:r.lamp,kepada:r.kpd});
-const prPg=id=>{const r=DB.pg.find(a=>a.id==id);if(DB.serverTpl&&DB.serverTpl.some(t=>t.jenis==='panggil'))return cetakDx('panggil',mPg(r),r);cetak(kop()+`<div class="body">${h(fill(DB.tpl.panggil,mPg(r)))}</div>`+ttdB(r.ts))};
-const prBap=id=>{const r=DB.bap.find(a=>a.id==id),l=L(r.lp);if(DB.serverTpl&&DB.serverTpl.some(t=>t.jenis==='bap'))return cetakDx('bap',mBap(r),r);
+const prPg=id=>{const r=DB.pg.find(a=>a.id==id);if(DB.serverTpl&&DB.serverTpl.some(t=>String(t.jenis||'').toLowerCase()==='panggil'))return cetakDx('panggil',mPg(r),r);cetak(kop()+`<div class="body">${h(fill(DB.tpl.panggil,mPg(r)))}</div>`+ttdB(r.ts))};
+const prBap=id=>{const r=DB.bap.find(a=>a.id==id),l=L(r.lp);if(DB.serverTpl&&DB.serverTpl.some(t=>String(t.jenis||'').toLowerCase()==='bap'))return cetakDx('bap',mBap(r),r);
 cetak(kop()+`<h3 class="c">BERITA ACARA PEMERIKSAAN</h3><div class="body">${h(fill(DB.tpl.bap,mBap(r)))}</div><div class="sig">${sg('Pemeriksa',r.pw.n,'NIP. '+h(r.pw.nip))}${sg('Yang Diperiksa',l.nama,'NIP. '+h(l.nip))}${sg('Saksi I',r.s1.n,r.s1.nip?'NIP. '+h(r.s1.nip):'')}${sg('Saksi II',r.s2.n,r.s2.nip?'NIP. '+h(r.s2.nip):'')}</div>`)};
 const prPn=id=>{const r=DB.pn.find(a=>a.id==id),l=L(r.lp);if(DB.tpl.dx_pern)return cetakDx('pern',mPn(r),r);cetak(kop()+`<h3 class="c">SURAT PERNYATAAN</h3><div class="body">${h(r.tx)}</div><div class="sig"><div>Mengetahui,<br>${h(DB.ttd.jab)}<br><br><br><br><b><u>${h(DB.ttd.nama)||'………'}</u></b><br>NIP. ${h(DB.ttd.nip)}</div><div>${h(DB.ttd.kota)}, ${tgl(r.tg)}<br>Yang membuat pernyataan,<br><span class="mt">Meterai</span><br><b><u>${h(l.nama)}</u></b><br>NIP. ${h(l.nip)}</div></div>`)};
 const prPl=id=>{const r=DB.pl.find(a=>a.id==id);if(DB.tpl.dx_limpah)return cetakDx('limpah',mPl(r),r);cetak(kop()+`<div class="body">${h(fill(DB.tpl.limpah,mPl(r)))}</div>`+ttdB(r.ts))};
@@ -321,8 +321,21 @@ function upTpl(k,i){const f=i.files[0];if(!f)return;if(f.size>1e6)return alert('
   try{await api('tplUpload',{jenis:k,file_base64:r.result.split(',')[1],nama:f.name});alert('Template tersimpan di server.');render()}
   catch(e){alert(e.message)}
 };r.readAsDataURL(f)}
-async function loadTpl(){try{const r=await api('tplList');DB.serverTpl=r.templates||[]}catch(e){DB.serverTpl=[]}}
-const dxBox=k=>{const has=DB.serverTpl&&DB.serverTpl.some(t=>t.jenis===k);return`<div style="border:1px dashed #94a3b8;border-radius:10px;padding:12px;margin-bottom:14px"><b style="font-size:12px">Template Word (.docx) — tersimpan di Google Drive</b>${has?`<div class="row"><div><b>${k}.docx</b><small>Tersedia di semua perangkat</small></div><div><button class="ghost red" onclick="delTpl('${k}')">Hapus</button></div></div>`:'<small style="display:block;color:var(--mu);margin:4px 0">Belum ada. Unggah file .docx.</small>'}<input type="file" accept=".docx" onchange="upTpl('${k}',this)"></div>`};
+async function loadTpl(){
+  try{
+    const r = await api('tplList');
+    DB.serverTpl = r.templates || [];
+    console.log('Template di Drive:', DB.serverTpl);
+  }catch(e){
+    console.error('Gagal memuat template:', e);
+    DB.serverTpl = [];
+  }
+  render();
+}
+const dxBox=k=>{
+  const has = DB.serverTpl && DB.serverTpl.some(t => String(t.jenis||'').toLowerCase() === k.toLowerCase());
+  return `<div style="border:1px dashed #94a3b8;border-radius:10px;padding:12px;margin-bottom:14px"><b style="font-size:12px">Template Word (.docx) — tersimpan di Google Drive</b>${has?`<div class="row"><div><b>${k}.docx</b><small>Tersedia di semua perangkat</small></div><div><button class="ghost red" onclick="delTpl('${k}')">Hapus</button></div></div>`:'<small style="display:block;color:var(--mu);margin:4px 0">Belum ada. Unggah file .docx.</small>'}<input type="file" accept=".docx" onchange="upTpl('${k}',this)"></div>`;
+};
 async function delTpl(k){if(!confirm('Hapus template dari server?'))return;try{await api('tplDelete',{jenis:k});alert('Dihapus');render()}catch(e){alert(e.message)}}
 async function getTpl(k){const r=await api('tplGet',{jenis:k});return r.b64}
 function exp(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(DB)],{type:'application/json'}));a.download='pembinaan-disiplin-'+today+'.json';a.click()}
