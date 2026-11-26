@@ -313,7 +313,7 @@ function authReset(un, info) {
 }
 async function doLogout(expired) {
   if (!expired && S.token) { try { await api('logout'); } catch (e) {} }
-  sessionStorage.removeItem('tk');
+  sessionStorage.removeItem('tk'); sessionStorage.removeItem('pdtk'); sessionStorage.removeItem('pdus');
   if (MAP) { MAP.remove(); MAP = null; }
   document.body.classList.remove('nav-open');
   showLogin();
@@ -321,7 +321,15 @@ async function doLogout(expired) {
 }
 
 /* ---------- shell ---------- */
+/* admin_dinas hanya memakai modul Pembinaan Disiplin (halaman terpisah, sesi dibawa lewat sessionStorage) */
+function goPembinaan(r) {
+  sessionStorage.setItem('pdtk', S.token || r.token || '');
+  sessionStorage.setItem('pdus', JSON.stringify(r.user || {}));
+  sessionStorage.setItem('pdrf', JSON.stringify(r.refs || []));
+  location.replace('pembinaan.html');
+}
 function init(r) {
+  if (r.user && r.user.role === 'admin_dinas') { goPembinaan(r); return; }
   S.user = r.user; S.schema = r.schema; S.refs = r.refs;
   $('#root').innerHTML = `<div class="app"><aside id="side">
     <div class="brand">
@@ -370,7 +378,7 @@ function init(r) {
 async function route() {
   if (!S.user) return;
   let id = location.hash.replace('#/', '') || 'dashboard';
-  if (!S.allowed(id)) id = isGuru ? 'portal_guru' : 'dashboard';
+  if (!S.allowed(id)) id = S.user.role === 'guru' ? 'portal_guru' : 'dashboard';
   $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.id === id));
   document.body.classList.remove('nav-open');
   if (MAP) { MAP.remove(); MAP = null; }
@@ -378,6 +386,7 @@ async function route() {
     if (id === 'dashboard') await pageDash();
     else if (id === 'portal_guru') await pagePortalGuru();
     else if (id === 'tentang') await pageTentang();
+    else if (id === 'disiplin') await pagePembinaan();
     else if (id === 'lokasi') await pageLokasi();
     else if (id === 'kebutuhan') await pageKebutuhan(); else if (id === 'statistik_user') await pageStatistikUser(); else if (id === 'periode_kepsek') await pagePeriodeKepsek(); else if (id === 'pengawas') await pagePengawas(); else if (id === 'penandatangan') await pagePenandatangan(); else if (id === 'wilayah_binaan') await pageWilayahBinaan(); else if (id === 'riwayat_guru') await pageRiwayatGuru(); else if (id === 'sinkron_dapodik') await pageSinkronDapodik();
     else if (id.startsWith('sk_')) await pageSK(id);
@@ -2486,6 +2495,52 @@ async function pageSinkronDapodik() {
       toast('Deteksi selesai', 'ok');
     } catch (e) {
       toast(e.message, 'er');
+    }
+  };
+}
+
+
+/* ---------- Pembinaan Disiplin (hanya baca: superadmin & pimpinan) ---------- */
+async function pagePembinaan() {
+  $('#ttl').textContent = 'Pembinaan Disiplin';
+  $('#view').innerHTML = '<div class="card mu">Memuat data…</div>';
+  const r = await api('pdList', {}, true);
+  const rows = r.rows || [], canDel = !!r.bisa_hapus;
+  const JN = ['Pemanggilan I', 'Pemanggilan II', 'BAP', 'Pelimpahan'];
+  const LBL = { 'Pemanggilan I': 'Surat Pemanggilan I', 'Pemanggilan II': 'Surat Pemanggilan II', 'BAP': 'BAP', 'Pelimpahan': 'Surat Pelimpahan' };
+  const dok = k => {
+    const b = JN.map(j => (k.dokumen || []).find(d => d.jenis === j)).filter(Boolean)
+      .map(d => `<button class="btn sm sec" data-doc="${esc(d.id)}">${esc(LBL[d.jenis] || d.jenis)}</button>`).join(' ');
+    return b || '<span class="mu">Belum ada dokumen</span>';
+  };
+  const proses = s => `<span class="badge ${s === 'Pelimpahan' ? 'ok' : 'wr'}">${esc(s || '–')}</span>`;
+  $('#view').innerHTML = `<div class="card">
+    <div class="tools"><input id="pq" type="search" placeholder="Cari nama / NIP / sekolah…"><div class="sp"></div>
+      <span class="mu">${rows.length} orang${canDel ? '' : ' · hanya baca'}</span></div>
+    <div id="ptbl"></div></div>`;
+  const draw = () => {
+    const q = ($('#pq').value || '').toLowerCase();
+    const list = rows.filter(k => !q || (k.nama + ' ' + k.nip + ' ' + k.sekolah + ' ' + k.pelanggaran).toLowerCase().includes(q));
+    $('#ptbl').innerHTML = list.length ? `<div class="tw"><table><thead><tr><th>No</th><th>Nama</th><th>Satuan Pendidikan</th><th>Pelanggaran</th><th>Proses</th><th>Dokumen</th>${canDel ? '<th></th>' : ''}</tr></thead><tbody>
+      ${list.map((k, i) => `<tr><td>${i + 1}</td><td><b>${esc(k.nama)}</b><br><span class="mu">${esc(k.nip || 'tanpa NIP')}</span></td><td>${esc(k.sekolah || '–')}</td><td>${esc(k.pelanggaran || '–')}</td><td>${proses(k.proses)}</td><td class="act" style="text-align:left;min-width:240px">${dok(k)}</td>${canDel ? `<td><button class="btn sm dan" data-del="${esc(k.id)}">Hapus</button></td>` : ''}</tr>`).join('')}
+      </tbody></table></div>` : '<div class="empty">Belum ada data pembinaan disiplin.</div>';
+  };
+  $('#pq').oninput = draw; draw();
+  $('#view').onclick = async e => {
+    const b = e.target.closest('[data-doc]'), d = e.target.closest('[data-del]');
+    if (b) {
+      const w = window.open('', '_blank');           // dibuka dulu agar tidak diblokir pop-up
+      try {
+        const f = await api('pdFile', { id: b.dataset.doc }, true);
+        const bin = atob(f.b64), u8 = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+        const url = URL.createObjectURL(new Blob([u8], { type: f.mime }));
+        if (w) w.location = url; else window.open(url, '_blank');
+      } catch (er) { if (w) w.close(); toast(er.message, 'er'); }
+    }
+    if (d && canDel && confirm('Hapus data pembinaan beserta seluruh dokumennya? Tindakan tidak dapat dibatalkan.')) {
+      try { await api('pdDelete', { id: d.dataset.del }, true); toast('Data dihapus', 'ok'); pagePembinaan(); }
+      catch (er) { toast(er.message, 'er'); }
     }
   };
 }
