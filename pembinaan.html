@@ -184,7 +184,22 @@ let r;try{r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/pla
 const j=await r.json();if(!j.ok){if(j.expired){GR.tk=null;sessionStorage.removeItem('pdtk')}throw Error(j.error||'Terjadi kesalahan')}return j}
 const sekNama=n=>(GR.refs.find(x=>String(x.npsn).toUpperCase()===String(n||'').toUpperCase())||{}).nama||'';
 const sekGuru=x=>x.sekolah||x.nama_sekolah||sekNama(x.npsn_sekolah||x.npsn)||x.tempat_tugas||x.unit_kerja||'';
-async function loadGuru(){if(!GR.tk||GR.rows)return;try{GR.rows=(await api('list',{entity:'guru'})).rows||[];GR.err=''}catch(e){GR.err=e.message}try{GR.peg=(await api('list',{entity:'pegawai'})).rows||[]}catch(e){GR.peg=null}render()}
+async function loadGuru(){
+  if(!GR.tk) return;
+  if(GR.rows && GR.peg) return;
+  try{
+    const [g, p] = await Promise.all([
+      api('list', {entity:'guru'}),
+      api('list', {entity:'pegawai'})
+    ]);
+    GR.rows = g.rows || [];
+    GR.peg = p.rows || [];
+    GR.err = '';
+  }catch(e){
+    GR.err = e.message;
+  }
+  render();
+}
 async function loginDiko(){try{const r=await api('login',{username:g('gu'),password:g('gp')});GR.tk=r.token;GR.user=r.user||null;GR.refs=r.refs||[];sessionStorage.setItem('pdtk',r.token);sessionStorage.setItem('pdus',JSON.stringify(GR.user));$('#lgm').hidden=true;$('#gp').value='';sessionStorage.setItem('pdrf',JSON.stringify(GR.refs));GR.rows=null;GR.err='';render();loadGuru();loadTpl();loadFromServer()}catch(e){alert(e.message)}}
 async function logoutDiko(){try{await api('logout')}catch(e){}
 GR.user=null;GR.tk=null;GR.rows=null;GR.peg=null;['pdus','pdtk','pdrf','tk'].forEach(k=>sessionStorage.removeItem(k));location.replace('index.html')}
@@ -200,7 +215,7 @@ function cariPeg(p,q){q=q.trim().toLowerCase();const b=$('#'+p+'r');if(q.length<
 const m=GR.peg.filter(x=>(x.nama||'').toLowerCase().includes(q)||String(x.nip||'').includes(q)).slice(0,6);
 b.innerHTML=m.length?m.map(x=>`<div class="row"><div><b>${h(x.nama)}</b><small>${h(x.nip||'tanpa NIP')} · ${h(x.jabatan||'')}</small></div><div><button class="ghost" onclick="pilihPeg('${p}','${x.id}')">Pilih</button></div></div>`).join(''):'<div class="empty">Tidak ditemukan. Isi manual di bawah.</div>'}
 function pilihPeg(p,id){const x=GR.peg.find(a=>a.id==id);if(!x)return;$('#'+p+'n').value=x.nama||'';$('#'+p+'j').value=x.jabatan||'';$('#'+p+'p').value=x.nip||'';$('#'+p+'r').innerHTML='';$('#'+p+'q').value=''}
-const gpick=()=>`<div style="background:#eef2ff;border-radius:10px;padding:12px;margin-bottom:14px"><b style="font-size:12px">Database Guru DIKO</b>${GR.tk?`<span class="b" style="margin-left:6px;background:#dcfce7;color:#166534">Terhubung</span> <button class="ghost" style="float:right" onclick="logoutDiko()">Keluar</button>${GR.rows?`<input id="gq" placeholder="Ketik nama atau NIP guru (min. 2 huruf)…" oninput="cariGuru(this.value)" autocomplete="off"><div id="gr"></div><small style="color:var(--mu)">${GR.rows.length} data guru dimuat. Pilih guru agar isian terisi otomatis.</small>`:`<div class="empty">${GR.err?h(GR.err):'Memuat data guru…'}</div>`}`:`<button onclick="openLogin()">Masuk &amp; hubungkan</button><small style="display:block;color:var(--mu);margin-top:6px">Gunakan akun DIKO (Admin Pembinaan/Admin Dinas). Tanpa login, data guru diisi manual.</small>`}</div>`;
+const gpick=()=>`<div style="background:#eef2ff;border-radius:10px;padding:12px;margin-bottom:14px"><b style="font-size:12px">Database Guru DIKO</b>${GR.tk?`<span class="b" style="margin-left:6px;background:#dcfce7;color:#166534">Terhubung</span> <button class="ghost" style="float:right" onclick="logoutDiko()">Keluar</button>${GR.rows?`<input id="gq" placeholder="Ketik nama atau NIP guru (min. 2 huruf)…" oninput="cariGuru(this.value)" autocomplete="off"><div id="gr"></div><small style="color:var(--mu)">${GR.rows.length} guru · ${GR.peg?GR.peg.length+' pegawai':''} dimuat.</small>`:`<div class="empty">${GR.err?h(GR.err):'Memuat data…'}</div>`}`:`<button onclick="openLogin()">Masuk &amp; hubungkan</button><small style="display:block;color:var(--mu);margin-top:6px">Gunakan akun DIKO (Admin Pembinaan/Admin Dinas). Tanpa login, data guru diisi manual.</small>`}</div>`;
 
 /* ===== Sinkron ke DIKO utama (Google Sheets + Drive) =====
    Laporan -> sheet PD_Kasus; Surat Pemanggilan I/II, BAP, Surat Pelimpahan (PDF hasil template atau scan) -> folder Drive PD_DIKO.
