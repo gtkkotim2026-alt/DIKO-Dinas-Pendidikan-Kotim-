@@ -159,7 +159,7 @@ const sel=(id,l,o,v,ex='')=>`<label>${l}<select id="${id}" ${ex}>${o.map(x=>{con
 const lapO=()=>[['','— pilih laporan —'],...DB.lap.map(x=>[x.id,`${x.nama} · ${x.pelanggaran}`])];
 const lm=l=>({nama:l.nama,nip:l.nip,pangkat:l.pangkat,jabatan:l.jabatan,sekolah:l.sekolah,status_peg:l.statusPeg,pelanggaran:l.pelanggaran,tgl_laporan:tgl(l.tgl),no_laporan:l.no});
 const tm=()=>({ttd_nama:DB.ttd.nama,ttd_nip:DB.ttd.nip,ttd_jabatan:DB.ttd.jab,ttd_pangkat:DB.ttd.pangkat});
-const kop=()=>{const t=DB.ttd;return`<div class="kop"><b>${h(t.i1)}</b><br><b class="big">${h(t.i2)}</b>${t.alamat?`<br><small>${h(t.alamat)}</small>`:''}</div>`};
+const kop=()=>{const t=DB.ttd;return`<div class="kop" style="display:flex;align-items:center;gap:12px;text-align:left"><img src="logo-kotim.png" style="width:60px;height:auto;flex:none" alt="Logo"><div style="flex:1;text-align:center"><b>${h(t.i1)}</b><br><b class="big">${h(t.i2)}</b>${t.alamat?`<br><small>${h(t.alamat)}</small>`:''}</div></div>`};
 const ttdB=tg=>{const t=DB.ttd;return`<div class="ttd"><div>${h(t.kota)}, ${tgl(tg)}<br>${h(t.jab)},<br><br><br><br><b><u>${h(t.nama)||'………'}</u></b><br>${h(t.pangkat)}<br>NIP. ${h(t.nip)||'………'}</div></div>`};
 const sg=(r,n,s='')=>`<div>${r}<br><br><br><br><b><u>${h(n)||'………'}</u></b><br>${s}</div>`;
 let PV=null;const NM={panggil:'Pemanggilan',bap:'BAP',pern:'Surat Pernyataan',limpah:'Surat Pelimpahan'};
@@ -226,7 +226,7 @@ lap(){const x=DB.lap.find(a=>a.id==ed)||{};return pg('Laporan Tindakan Disiplin'
 ${inp('no','Nomor laporan',x.no)}${inp('tg','Tanggal laporan',x.tgl||today,'date')}${inp('nm','Nama guru',x.nama)}<div class="r2">${inp('nip','NIP',x.nip)}${inp('pk','Pangkat/Gol.',x.pangkat)}</div>${inp('jb','Jabatan',x.jabatan)}${inp('st','Status kepegawaian (PNS/PPPK)',x.statusPeg)}${inp('sk','Satuan pendidikan',x.sekolah)}${inp('pl','Jenis pelanggaran',x.pelanggaran)}${ta('ur','Uraian kejadian',x.uraian)}${inp('pp','Pelapor',x.pelapor)}${sel('stp','Proses',ST,x.status||ST[0])}
 <div class="act"><button onclick="saveLap()">Simpan</button>${ed?'<button class="ghost" onclick="ed=null;render()">Batal</button>':''}</div></section>
 <section class="card"><h2>Daftar Laporan (${DB.lap.length})</h2>${lst('lap',x=>`<div class="row"><div><b>${h(x.nama)}</b> <span class="b s${ST.indexOf(x.status)}">${x.status}</span><small>${h(x.pelanggaran)} · ${tgl(x.tgl)}</small></div><div><button class="ghost" onclick="ed='${x.id}';render()">Ubah</button><button class="ghost red" onclick="del('lap','${x.id}')">Hapus</button></div></div>`)}</section></div>`)},
-pg(){return pg('Pemanggilan','Isian tersimpan dan dicetak sesuai template (menu 6).',`<div class="grid"><section class="card"><h2>Input Pemanggilan</h2>${sel('lp','Laporan',lapO(),'')}${sel('ke','Pemanggilan ke',['I','II'],'I')}${inp('no','Nomor surat')}${inp('ts','Tanggal surat',today,'date')}${inp('ht','Hari/tanggal menghadap','','date')}${inp('jm','Pukul','09.00 WITA')}${inp('tm','Tempat',C.TEMPAT||'')}<button onclick="savePg()">Simpan</button></section>
+pg(){return pg('Pemanggilan','Isian tersimpan dan dicetak sesuai template (menu 6).',`<div class="grid"><section class="card"><h2>Input Pemanggilan</h2>${sel('lp','Laporan',lapO(),'')}${sel('ke','Pemanggilan ke',['I','II'],'I')}${inp('no','Nomor surat','800.1.6.2/        /DISDIK-5/2026')}${inp('ts','Tanggal surat',today,'date')}${inp('ht','Hari/tanggal menghadap','','date')}<label>Pukul<select id="jm"><option>08.00 WIB</option><option selected>09.00 WIB</option><option>10.00 WIB</option><option>11.00 WIB</option><option>13.00 WIB</option><option>14.00 WIB</option></select></label>${inp('tm','Tempat','Ruang Bidang Pembinaan Ketenagaan')}<button onclick="savePg()">Simpan</button></section>
 <section class="card"><h2>Tersimpan</h2>${lst('pg',r=>rowH(`Pemanggilan ${r.ke} – ${L(r.lp).nama}`,`${r.no} · ${hari(r.ht)}`,'prPg','pg',r.id,'wPg'))}</section></div>`)},
 bap(){const l=L(sl),qs=DB.tpl.bapQ.split('\n').filter(Boolean),pr=(p,t,n='',j='',np='')=>`<div style="background:#f8fafc;border:1px solid var(--ln);border-radius:10px;padding:10px;margin-bottom:10px">${pegBox(p)}<div class="r2">${inp(p+'n','Nama '+t,n)}${inp(p+'j','Jabatan',j)}</div>${inp(p+'p','NIP',np)}</div>`;
 return pg('Berita Acara Pemeriksaan','Pertanyaan otomatis dari template BAP (menu 7); isi jawaban lalu simpan.',`<div class="grid"><section class="card"><h2>Input BAP</h2>${sel('lp','Laporan',lapO(),sl,'onchange="sl=this.value;render()"')}
@@ -254,7 +254,7 @@ function saveT(k,id){DB.tpl[k]=g(id);if(save())alert('Template tersimpan.')}
 function saveTtd(){DB.ttd={i1:g('i1'),i2:g('i2'),alamat:g('al'),kota:g('ko'),nama:g('n'),nip:g('p'),pangkat:g('pk'),jab:g('j')};if(save())alert('Tersimpan.')}
 function saveLap(){if(!g('nm')||!g('pl'))return alert('Nama guru dan jenis pelanggaran wajib diisi.');const x={id:ed||uid(),no:g('no'),tgl:g('tg'),nama:g('nm'),nip:g('nip'),pangkat:g('pk'),jabatan:g('jb'),sekolah:g('sk'),statusPeg:g('st'),pelanggaran:g('pl'),uraian:g('ur'),pelapor:g('pp'),status:g('stp')};ed?DB.lap[DB.lap.findIndex(a=>a.id==ed)]=x:DB.lap.push(x);ed=null;save();render()}
 const need=()=>g('lp')||(alert('Pilih laporan terlebih dahulu.'),0);
-function savePg(){const lp=need();if(!lp)return;if(!g('ht')&&!confirm('Hari/tanggal menghadap belum diisi, sehingga akan tercetak "…". Tetap simpan?'))return;DB.pg.push({id:uid(),lp,ke:g('ke'),no:g('no'),ts:g('ts'),ht:g('ht'),jm:g('jm'),tm:g('tm')});adv(lp,'Pemanggilan '+g('ke'));save();render()}
+function savePg(){const lp=need();if(!lp)return;if(!g('ht')&&!confirm('Hari/tanggal menghadap belum diisi, sehingga akan tercetak "…". Tetap simpan?'))return;DB.pg.push({id:uid(),lp,ke:g('ke'),no:g('no'),ts:g('ts'),ht:g('ht'),jm:$('#jm').value,tm:g('tm')});adv(lp,'Pemanggilan '+g('ke'));save();render()}
 function saveBap(){const lp=need();if(!lp)return;const qs=DB.tpl.bapQ.split('\n').filter(Boolean);DB.bap.push({id:uid(),lp,ht:g('ht'),tm:g('tm'),pw:{n:g('pwn'),j:g('pwj'),nip:g('pwp')},s1:{n:g('s1n'),j:g('s1j'),nip:g('s1p')},s2:{n:g('s2n'),j:g('s2j'),nip:g('s2p')},qa:qs.map((q,i)=>({q:fill(q,lm(L(lp))),a:g('a'+i)}))});save();sl='';render()}
 function savePn(){const lp=need();if(!lp)return;DB.pn.push({id:uid(),lp,tg:g('tg'),tx:g('tx')});save();sl='';render()}
 function savePl(){const lp=need();if(!lp)return;DB.pl.push({id:uid(),lp,no:g('no'),ts:g('ts'),lamp:g('lamp'),kpd:g('kpd')});adv(lp,'Pelimpahan');save();render()}
@@ -263,14 +263,14 @@ const kt=()=>({kota:DB.ttd.kota});
 const mPg=r=>({...lm(L(r.lp)),...tm(),...kt(),no_surat:r.no,tgl_surat:tgl(r.ts),panggilan_ke:r.ke,hari_tgl:hari(r.ht),jam:r.jm,tempat:r.tm});
 const mBap=r=>({...lm(L(r.lp)),...tm(),...kt(),tgl_surat:tgl(r.ht),hari_tgl:hari(r.ht),tempat:r.tm,pw_nama:r.pw.n,pw_nip:r.pw.nip,pw_jabatan:r.pw.j,s1_nama:r.s1.n,s1_nip:r.s1.nip,s1_jabatan:r.s1.j,s2_nama:r.s2.n,s2_nip:r.s2.nip,s2_jabatan:r.s2.j,daftar_qa:r.qa.map((x,i)=>`${i+1}. Pertanyaan : ${x.q}\n    Jawaban    : ${x.a||'-'}`).join('\n\n')});
 const mPl=r=>({...lm(L(r.lp)),...tm(),...kt(),no_surat:r.no,tgl_surat:tgl(r.ts),lampiran:r.lamp,kepada:r.kpd});
-const prPg=id=>{const r=DB.pg.find(a=>a.id==id);if(DB.tpl.dx_panggil)return cetakDx('panggil',mPg(r),r);cetak(kop()+`<div class="body">${h(fill(DB.tpl.panggil,mPg(r)))}</div>`+ttdB(r.ts))};
-const prBap=id=>{const r=DB.bap.find(a=>a.id==id),l=L(r.lp);if(DB.tpl.dx_bap)return cetakDx('bap',mBap(r),r);
+const prPg=id=>{const r=DB.pg.find(a=>a.id==id);if(DB.serverTpl&&DB.serverTpl.some(t=>t.jenis==='panggil'))return cetakDx('panggil',mPg(r),r);cetak(kop()+`<div class="body">${h(fill(DB.tpl.panggil,mPg(r)))}</div>`+ttdB(r.ts))};
+const prBap=id=>{const r=DB.bap.find(a=>a.id==id),l=L(r.lp);if(DB.serverTpl&&DB.serverTpl.some(t=>t.jenis==='bap'))return cetakDx('bap',mBap(r),r);
 cetak(kop()+`<h3 class="c">BERITA ACARA PEMERIKSAAN</h3><div class="body">${h(fill(DB.tpl.bap,mBap(r)))}</div><div class="sig">${sg('Pemeriksa',r.pw.n,'NIP. '+h(r.pw.nip))}${sg('Yang Diperiksa',l.nama,'NIP. '+h(l.nip))}${sg('Saksi I',r.s1.n,r.s1.nip?'NIP. '+h(r.s1.nip):'')}${sg('Saksi II',r.s2.n,r.s2.nip?'NIP. '+h(r.s2.nip):'')}</div>`)};
 const prPn=id=>{const r=DB.pn.find(a=>a.id==id),l=L(r.lp);if(DB.tpl.dx_pern)return cetakDx('pern',mPn(r),r);cetak(kop()+`<h3 class="c">SURAT PERNYATAAN</h3><div class="body">${h(r.tx)}</div><div class="sig"><div>Mengetahui,<br>${h(DB.ttd.jab)}<br><br><br><br><b><u>${h(DB.ttd.nama)||'………'}</u></b><br>NIP. ${h(DB.ttd.nip)}</div><div>${h(DB.ttd.kota)}, ${tgl(r.tg)}<br>Yang membuat pernyataan,<br><span class="mt">Meterai</span><br><b><u>${h(l.nama)}</u></b><br>NIP. ${h(l.nip)}</div></div>`)};
 const prPl=id=>{const r=DB.pl.find(a=>a.id==id);if(DB.tpl.dx_limpah)return cetakDx('limpah',mPl(r),r);cetak(kop()+`<div class="body">${h(fill(DB.tpl.limpah,mPl(r)))}</div>`+ttdB(r.ts))};
 const MT='application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const erm=e=>{const er=e.properties&&e.properties.errors;return er?er.map(x=>x.properties.explanation||x.message).join('; '):e.message};
-function mk(k,m){const z=new PizZip(DB.tpl['dx_'+k].data.split(',')[1],{base64:true}),d=new docxtemplater(z,{delimiters:{start:'{{',end:'}}'},paragraphLoop:true,linebreaks:true,nullGetter:()=>'…'});d.render(m);return d.getZip().generate({type:'blob',mimeType:MT})}
+async function mk(k,m){const b64=await getTpl(k);const z=new PizZip(b64,{base64:true}),d=new docxtemplater(z,{delimiters:{start:'{{',end:'}}'},paragraphLoop:true,linebreaks:true,nullGetter:()=>'…'});d.render(m);return d.getZip().generate({type:'blob',mimeType:MT})}
 function wd(k,m,nm){if(!DB.tpl['dx_'+k])return alert('Unggah template .docx di menu template terlebih dahulu.');
 try{const a=document.createElement('a');a.href=URL.createObjectURL(mk(k,m));a.download=nm+'.docx';a.click()}catch(e){alert('Gagal membuat Word: '+erm(e))}}
 const b64=b=>new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result.split(',')[1]);f.readAsDataURL(b)});
@@ -287,15 +287,40 @@ const wBap=id=>{const r=DB.bap.find(a=>a.id==id);wd('bap',mBap(r),`BAP - ${L(r.l
 const mPn=r=>({...lm(L(r.lp)),...tm(),...kt(),tgl_surat:tgl(r.tg),isi:r.tx});
 const wPn=id=>{const r=DB.pn.find(a=>a.id==id);wd('pern',mPn(r),`Pernyataan - ${L(r.lp).nama}`)};
 const wPl=id=>{const r=DB.pl.find(a=>a.id==id);wd('limpah',mPl(r),`Pelimpahan - ${L(r.lp).nama}`)};
-function upTpl(k,i){const f=i.files[0];if(!f)return;if(f.size>1e6)return alert('Ukuran template maksimal 1 MB.');const r=new FileReader();r.onload=()=>{DB.tpl['dx_'+k]={nm:f.name,data:r.result};if(save())render()};r.readAsDataURL(f)}
-const dxBox=k=>{const d=DB.tpl['dx_'+k];return`<div style="border:1px dashed #94a3b8;border-radius:10px;padding:12px;margin-bottom:14px"><b style="font-size:12px">Template Word (.docx)</b>${d?`<div class="row"><div><b>${h(d.nm)}</b><small>Aktif · dipakai untuk membuat PDF, pratinjau, dan cetak</small></div><div><button class="ghost red" onclick="delete DB.tpl['dx_${k}'];save();render()">Hapus</button></div></div>`:'<small style="display:block;color:var(--mu);margin:4px 0">Belum ada. Unggah file .docx yang berisi kode seperti {{nama}}.</small>'}<input type="file" accept=".docx" onchange="upTpl('${k}',this)"></div>`};
+function upTpl(k,i){const f=i.files[0];if(!f)return;if(f.size>1e6)return alert('Ukuran template maksimal 1 MB.');const r=new FileReader();r.onload=async()=>{
+  try{await api('tplUpload',{jenis:k,file_base64:r.result.split(',')[1],nama:f.name});alert('Template tersimpan di server.');render()}
+  catch(e){alert(e.message)}
+};r.readAsDataURL(f)}
+async function loadTpl(){try{const r=await api('tplList');DB.serverTpl=r.templates||[]}catch(e){DB.serverTpl=[]}}
+const dxBox=k=>{const has=DB.serverTpl&&DB.serverTpl.some(t=>t.jenis===k);return`<div style="border:1px dashed #94a3b8;border-radius:10px;padding:12px;margin-bottom:14px"><b style="font-size:12px">Template Word (.docx) — tersimpan di Google Drive</b>${has?`<div class="row"><div><b>${k}.docx</b><small>Tersedia di semua perangkat</small></div><div><button class="ghost red" onclick="delTpl('${k}')">Hapus</button></div></div>`:'<small style="display:block;color:var(--mu);margin:4px 0">Belum ada. Unggah file .docx.</small>'}<input type="file" accept=".docx" onchange="upTpl('${k}',this)"></div>`};
+async function delTpl(k){if(!confirm('Hapus template dari server?'))return;try{await api('tplDelete',{jenis:k});alert('Dihapus');render()}catch(e){alert(e.message)}}
+async function getTpl(k){const r=await api('tplGet',{jenis:k});return r.b64}
 function exp(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(DB)],{type:'application/json'}));a.download='pembinaan-disiplin-'+today+'.json';a.click()}
 function imp(i){const f=i.files[0];if(!f||!confirm('Data saat ini akan diganti dengan cadangan. Lanjutkan?'))return;const r=new FileReader();r.onload=()=>{try{DB=JSON.parse(r.result);DB.tpl={...D,...DB.tpl};save();render()}catch(e){alert('File cadangan tidak valid.')}};r.readAsText(f)}
 function render(){const k=P[location.hash.slice(1)]?location.hash.slice(1):'lap',m=M.find(x=>x[0]==k);
 $('#nav').innerHTML=M.map(([a,t,ic],i)=>`<a href="#${a}" class="${a==k?'on':''}"><i>${i+1}</i><span class="ic">${ic}</span>${t}</a>`).join('');
 $('#htl').textContent=$('#hb').textContent=TT[k];$('#hico').textContent=m[2];$('#yr').textContent=new Date().getFullYear();userBox();$('#main').innerHTML=P[k]();scrollTo(0,0)}
-[['lg1','LOGO_KOTIM'],['lg2','LOGO_DISDIK'],['lg3','GEDUNG']].forEach(([i,k])=>{const e=$('#'+i);if(C[k]){e.src=C[k];e.onerror=()=>e.style.display='none'}else e.style.display='none'});
+[['lg1','logo-kotim.png'],['lg2','logo-disdik.png'],['lg3','gedung.png']].forEach(([i,src])=>{const e=$('#'+i);e.src=src;e.onerror=()=>e.style.display='none'});
 addEventListener('hashchange',()=>{sl='';ed=null;render()});try{GR.refs=JSON.parse(sessionStorage.getItem('pdrf')||'[]')}catch(e){}
-render();loadGuru();pdFlush();
-if(GR.tk&&!GR.user)api('bootstrap').then(r=>{GR.user=r.user||null;GR.refs=r.refs||[];render()}).catch(()=>{});
+async function loadFromServer() {
+  if (!GR.tk) return;
+  try {
+    const r = await api('pdList');
+    if (r.rows && r.rows.length) {
+      r.rows.forEach(s => {
+        if (!DB.lap.find(l => l.id === s.id)) {
+          DB.lap.push({
+            id: s.id, no: s.no_laporan, tgl: s.tgl_laporan, nama: s.nama, nip: s.nip,
+            pangkat: s.pangkat, jabatan: s.jabatan, sekolah: s.sekolah, statusPeg: s.status_peg,
+            pelanggaran: s.pelanggaran, status: s.proses || 'Laporan', sy: 1
+          });
+        }
+      });
+      save();
+      render();
+    }
+  } catch (e) {}
+}
+if(GR.tk&&!GR.user)api('bootstrap').then(r=>{GR.user=r.user||null;GR.refs=r.refs||[];render();loadFromServer()}).catch(()=>{});
+loadFromServer();
 </script></body></html>
