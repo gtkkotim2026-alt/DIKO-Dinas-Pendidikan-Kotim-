@@ -202,7 +202,7 @@ async function loadGuru(){
       api('list', {entity:'guru'}),
       api('list', {entity:'pegawai'})
     ]);
-    GR.rows = g.rows || [];
+    GR.rows = (g.rows || []).filter(x => x.nip && String(x.nip).trim());
     GR.peg = p.rows || [];
     localStorage.setItem(CACHE_KEY, JSON.stringify({t:Date.now(), guru:GR.rows, peg:GR.peg}));
     GR.err = '';
