@@ -286,14 +286,18 @@ const prPl=id=>{const r=DB.pl.find(a=>a.id==id);if(DB.tpl.dx_limpah)return cetak
 const MT='application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const erm=e=>{const er=e.properties&&e.properties.errors;return er?er.map(x=>x.properties.explanation||x.message).join('; '):e.message};
 async function mk(k,m){
-  const b64 = await getTpl(k);
-  if (!b64) throw new Error('Template tidak ditemukan di server');
-  const z = new PizZip(b64, {base64: true});
-  const d = new docxtemplater(z, {delimiters:{start:'{{',end:'}}'}, paragraphLoop:true, linebreaks:true, nullGetter:()=>'…'});
-  d.render(m);
-  const blob = d.getZip().generate({type:'blob', mimeType:MT});
-  if (!(blob instanceof Blob)) throw new Error('Gagal membuat dokumen dari template');
-  return blob;
+  try{
+    const b64 = await getTpl(k);
+    if (!b64 || b64.length < 100) throw new Error('Template kosong atau tidak valid di Drive');
+    const z = new PizZip(b64, {base64: true});
+    const d = new docxtemplater(z, {delimiters:{start:'{{',end:'}}'}, paragraphLoop:true, linebreaks:true, nullGetter:()=>'…'});
+    d.render(m);
+    const blob = d.getZip().generate({type:'blob', mimeType:MT});
+    if (!(blob instanceof Blob)) throw new Error('Gagal membuat file dari template');
+    return blob;
+  }catch(e){
+    throw new Error('Template error: ' + (e.message || e));
+  }
 }
 function wd(k,m,nm){if(!DB.tpl['dx_'+k])return alert('Unggah template .docx di menu template terlebih dahulu.');
 try{const a=document.createElement('a');a.href=URL.createObjectURL(mk(k,m));a.download=nm+'.docx';a.click()}catch(e){alert('Gagal membuat Word: '+erm(e))}}
