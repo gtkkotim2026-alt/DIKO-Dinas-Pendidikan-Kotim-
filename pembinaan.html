@@ -270,10 +270,25 @@ const prPn=id=>{const r=DB.pn.find(a=>a.id==id),l=L(r.lp);if(DB.tpl.dx_pern)retu
 const prPl=id=>{const r=DB.pl.find(a=>a.id==id);if(DB.tpl.dx_limpah)return cetakDx('limpah',mPl(r),r);cetak(kop()+`<div class="body">${h(fill(DB.tpl.limpah,mPl(r)))}</div>`+ttdB(r.ts))};
 const MT='application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const erm=e=>{const er=e.properties&&e.properties.errors;return er?er.map(x=>x.properties.explanation||x.message).join('; '):e.message};
-async function mk(k,m){const b64=await getTpl(k);const z=new PizZip(b64,{base64:true}),d=new docxtemplater(z,{delimiters:{start:'{{',end:'}}'},paragraphLoop:true,linebreaks:true,nullGetter:()=>'…'});d.render(m);return d.getZip().generate({type:'blob',mimeType:MT})}
+async function mk(k,m){
+  const b64 = await getTpl(k);
+  if (!b64) throw new Error('Template tidak ditemukan di server');
+  const z = new PizZip(b64, {base64: true});
+  const d = new docxtemplater(z, {delimiters:{start:'{{',end:'}}'}, paragraphLoop:true, linebreaks:true, nullGetter:()=>'…'});
+  d.render(m);
+  const blob = d.getZip().generate({type:'blob', mimeType:MT});
+  if (!(blob instanceof Blob)) throw new Error('Gagal membuat dokumen dari template');
+  return blob;
+}
 function wd(k,m,nm){if(!DB.tpl['dx_'+k])return alert('Unggah template .docx di menu template terlebih dahulu.');
 try{const a=document.createElement('a');a.href=URL.createObjectURL(mk(k,m));a.download=nm+'.docx';a.click()}catch(e){alert('Gagal membuat Word: '+erm(e))}}
-const b64=b=>new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result.split(',')[1]);f.readAsDataURL(b)});
+const b64=b=>new Promise((res,rej)=>{
+  if (!(b instanceof Blob)) return rej(new Error('Data dokumen tidak valid'));
+  const f=new FileReader();
+  f.onload=()=>res(f.result.split(',')[1]);
+  f.onerror=()=>rej(new Error('Gagal membaca dokumen'));
+  f.readAsDataURL(b);
+});
 async function cetakDx(k,m,r,force){const nm=NM[k]+' - '+m.nama,src=k+r.id;let d=DB.dok.find(x=>x.src==src);
 if(force&&d){DB.dok=DB.dok.filter(x=>x.src!=src);d=null}
 $('#pvt').textContent=nm;$('#pv').hidden=false;
