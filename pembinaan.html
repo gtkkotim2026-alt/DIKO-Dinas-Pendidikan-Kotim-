@@ -163,9 +163,10 @@ const kop=()=>{const t=DB.ttd;return`<div class="kop" style="display:flex;align-
 const ttdB=tg=>{const t=DB.ttd;return`<div class="ttd"><div>${h(t.kota)}, ${tgl(tg)}<br>${h(t.jab)},<br><br><br><br><b><u>${h(t.nama)||'………'}</u></b><br>${h(t.pangkat)}<br>NIP. ${h(t.nip)||'………'}</div></div>`};
 const sg=(r,n,s='')=>`<div>${r}<br><br><br><br><b><u>${h(n)||'………'}</u></b><br>${s}</div>`;
 let PV=null;const NM={panggil:'Pemanggilan',bap:'BAP',pern:'Surat Pernyataan',limpah:'Surat Pelimpahan'};
+const hasT=k=>!!(DB.serverTpl&&DB.serverTpl.some(t=>String(t.jenis||'').toLowerCase()===k.toLowerCase()));
 const cetak=x=>prev('Pratinjau dokumen',{html:x});
-async function prev(t,o){PV=o;$('#pvt').textContent=t;$('#pv').hidden=false;const b=$('#pvb'),dx=o.k&&DB.tpl['dx_'+o.k];$('#pvw').hidden=!dx;$('#pvu').hidden=$('#pvr').hidden=true;
-if(dx){b.innerHTML='<div class="empty">Memuat pratinjau…</div>';try{if(typeof docx==='undefined')throw Error('Pustaka pratinjau Word gagal dimuat (cek koneksi internet).');b.innerHTML='';await docx.renderAsync(mk(o.k,o.m),b,null,{inWrapper:true,experimental:true,ignoreLastRenderedPageBreak:false})}catch(e){b.innerHTML='<div class="empty">Gagal membuat pratinjau: '+h(erm(e))+'</div>'}}
+async function prev(t,o){PV=o;$('#pvt').textContent=t;$('#pv').hidden=false;const b=$('#pvb'),dx=o.k&&hasT(o.k);$('#pvw').hidden=!dx;$('#pvu').hidden=$('#pvr').hidden=true;
+if(dx){b.innerHTML='<div class="empty">Memuat pratinjau…</div>';try{if(typeof docx==='undefined')throw Error('Pustaka pratinjau Word gagal dimuat (cek koneksi internet).');b.innerHTML='';await docx.renderAsync(await mk(o.k,o.m),b,null,{inWrapper:true,experimental:true,ignoreLastRenderedPageBreak:false})}catch(e){b.innerHTML='<div class="empty">Gagal membuat pratinjau: '+h(erm(e))+'</div>'}}
 else b.innerHTML='<div class="paper">'+o.html+'</div>'}
 function pvClose(){$('#pv').hidden=true;$('#pvb').innerHTML='';PV=null}
 function pvDl(){const a=document.createElement('a');a.href=PV.pdf;a.download=PV.nm+'.pdf';a.click()}
@@ -178,40 +179,39 @@ const del=(k,id)=>{if(confirm('Hapus data ini?')){DB[k]=DB[k].filter(a=>a.id!=id
 const lst=(k,f,pr)=>DB[k].length?DB[k].map(f).join(''):'<div class="empty">Belum ada data.</div>';
 const pg=(t,s,body)=>`<p class="sub">${s}</p>${body}`;
 let ed=null,sl='';
-const GR={user:JSON.parse(sessionStorage.getItem('pdus')||'null'),tk:sessionStorage.getItem('pdtk')||sessionStorage.getItem('tk'),refs:[],rows:null,peg:null,err:''};
-async function api(action,p={}){if(!API_URL||API_URL.includes('GANTI'))throw Error('API_URL belum diisi di index.html');
+const GR={user:JSON.parse(sessionStorage.getItem('pdus')||'null'),tk:sessionStorage.getItem('pdtk')||sessionStorage.getItem('tk'),refs:[],rows:null,peg:null,err:'',errP:''};
+async function api(action,p={}){if(!API_URL||API_URL.includes('GANTI'))throw Error('API_URL belum diisi di config.js');
 let r;try{r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,token:GR.tk,...p})})}catch(e){throw Error('Tidak dapat terhubung ke server DIKO.')}
 const j=await r.json();if(!j.ok){if(j.expired){GR.tk=null;sessionStorage.removeItem('pdtk')}throw Error(j.error||'Terjadi kesalahan')}return j}
 const sekNama=n=>(GR.refs.find(x=>String(x.npsn).toUpperCase()===String(n||'').toUpperCase())||{}).nama||'';
 const sekGuru=x=>x.sekolah||x.nama_sekolah||sekNama(x.npsn_sekolah||x.npsn)||x.tempat_tugas||x.unit_kerja||'';
-async function loadGuru(){
-  if(!GR.tk) return;
-  const CACHE_KEY = 'pd_guru_peg';
-  const CACHE_TTL = 15 * 24 * 60 * 60 * 1000; // 15 hari
-  try{
-    const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
-    if(cached && (Date.now() - cached.t < CACHE_TTL) && cached.guru && cached.peg){
-      GR.rows = cached.guru;
-      GR.peg = cached.peg;
-      render();
-      return;
-    }
-  }catch(e){}
-  try{
-    const [g, p] = await Promise.all([
-      api('list', {entity:'guru'}),
-      api('list', {entity:'pegawai'})
-    ]);
-    GR.rows = (g.rows || []).filter(x => x.nip && String(x.nip).trim());
-    GR.peg = p.rows || [];
-    localStorage.setItem(CACHE_KEY, JSON.stringify({t:Date.now(), guru:GR.rows, peg:GR.peg}));
-    GR.err = '';
-  }catch(e){
-    GR.err = e.message;
+
+/* ===== Muat data guru & pegawai (diperbaiki) =====
+   Dipanggil saat login DAN saat halaman dibuka dengan token yang masih tersimpan.
+   Guru dan pegawai dimuat terpisah, sehingga kegagalan salah satu tidak menggagalkan yang lain. */
+let LG=0;
+async function loadGuru(force){
+  if(!GR.tk||LG)return;
+  const CK='pd_guru_peg',TTL=15*24*60*60*1000;
+  if(!force){
+    try{
+      const c=JSON.parse(localStorage.getItem(CK)||'null');
+      if(c&&Date.now()-c.t<TTL&&c.guru&&c.guru.length&&c.peg&&c.peg.length){
+        GR.rows=c.guru;GR.peg=c.peg;GR.err=GR.errP='';render();return;
+      }
+    }catch(e){}
   }
+  LG=1;GR.err=GR.errP='';
+  const [gu,pe]=await Promise.allSettled([api('list',{entity:'guru'}),api('list',{entity:'pegawai'})]);
+  if(gu.status==='fulfilled')GR.rows=(gu.value.rows||[]).filter(x=>x.nip&&String(x.nip).trim());
+  else GR.err=(gu.reason&&gu.reason.message)||'gagal';
+  if(pe.status==='fulfilled')GR.peg=pe.value.rows||[];
+  else GR.errP=(pe.reason&&pe.reason.message)||'gagal';
+  LG=0;
+  if(GR.rows&&GR.peg){try{localStorage.setItem(CK,JSON.stringify({t:Date.now(),guru:GR.rows,peg:GR.peg}))}catch(e){}}
   render();
 }
-async function loginDiko(){try{const r=await api('login',{username:g('gu'),password:g('gp')});GR.tk=r.token;GR.user=r.user||null;GR.refs=r.refs||[];sessionStorage.setItem('pdtk',r.token);sessionStorage.setItem('pdus',JSON.stringify(GR.user));$('#lgm').hidden=true;$('#gp').value='';sessionStorage.setItem('pdrf',JSON.stringify(GR.refs));GR.rows=null;GR.err='';render();loadGuru();loadTpl();loadFromServer()}catch(e){alert(e.message)}}
+async function loginDiko(){try{const r=await api('login',{username:g('gu'),password:g('gp')});GR.tk=r.token;GR.user=r.user||null;GR.refs=r.refs||[];sessionStorage.setItem('pdtk',r.token);sessionStorage.setItem('pdus',JSON.stringify(GR.user));$('#lgm').hidden=true;$('#gp').value='';sessionStorage.setItem('pdrf',JSON.stringify(GR.refs));GR.rows=null;GR.peg=null;GR.err=GR.errP='';render();loadGuru(1);loadTpl();loadFromServer()}catch(e){alert(e.message)}}
 async function logoutDiko(){try{await api('logout')}catch(e){}
 GR.user=null;GR.tk=null;GR.rows=null;GR.peg=null;['pdus','pdtk','pdrf','tk'].forEach(k=>sessionStorage.removeItem(k));location.replace('index.html')}
 function cariGuru(q){q=q.trim().toLowerCase();const b=$('#gr');if(q.length<2||!GR.rows){b.innerHTML='';return}
@@ -221,12 +221,14 @@ function pilihGuru(id){const x=GR.rows.find(a=>a.id==id);if(!x)return;
 const v={nm:x.nama,nip:x.nip||x.nuptk||x.nik,pk:x.golongan||x.pangkat||x.pangkat_golongan,jb:x.jabatan_ptk||x.jabatan,sk:sekGuru(x),st:x.status};
 const miss=[];for(const k in v){const el=$('#'+k);if(!el)continue;el.value=v[k]||'';if(!v[k]&&k!='st')miss.push(el.closest('label').firstChild.textContent.trim())}
 $('#gr').innerHTML=`<div class="empty" style="color:#166534">✔ Terisi dari database: <b>${h(x.nama)}</b>${miss.length?`<br><span style="color:#b45309">Belum ada di database, isi manual: ${miss.join(', ')}</span>`:''}</div>`;$('#gq').value=''}
-const pegBox=p=>`<input id="${p}q" placeholder="🔎 Cari pegawai Disdik (nama atau NIP)…" oninput="cariPeg('${p}',this.value)" autocomplete="off" style="margin-bottom:6px"><div id="${p}r"></div><small style="color:var(--mu)">${GR.peg?GR.peg.length+' pegawai':'Memuat pegawai…'}</small>`;
+/* status pemuatan: jumlah data / pesan gagal + tautan coba lagi / memuat */
+const stN=(a,e,n)=>a?a.length+' '+n+' dimuat':e?`<span style="color:#b91c1c">Gagal memuat: ${h(e)}</span> <a href="#" onclick="loadGuru(1);return false">Coba lagi</a>`:'Memuat…';
+const pegBox=p=>`<input id="${p}q" placeholder="🔎 Cari pegawai Disdik (nama atau NIP)…" oninput="cariPeg('${p}',this.value)" autocomplete="off" style="margin-bottom:6px"><div id="${p}r"></div><small style="color:var(--mu)">${stN(GR.peg,GR.errP,'pegawai')}</small>`;
 function cariPeg(p,q){q=q.trim().toLowerCase();const b=$('#'+p+'r');if(q.length<2||!GR.peg){b.innerHTML='';return}
 const m=GR.peg.filter(x=>(x.nama||'').toLowerCase().includes(q)||String(x.nip||'').includes(q)).slice(0,6);
 b.innerHTML=m.length?m.map(x=>`<div class="row"><div><b>${h(x.nama)}</b><small>${h(x.nip||'tanpa NIP')} · ${h(x.jabatan||'')}</small></div><div><button class="ghost" onclick="pilihPeg('${p}','${x.id}')">Pilih</button></div></div>`).join(''):'<div class="empty">Tidak ditemukan. Isi manual di bawah.</div>'}
 function pilihPeg(p,id){const x=GR.peg.find(a=>a.id==id);if(!x)return;$('#'+p+'n').value=x.nama||'';$('#'+p+'j').value=x.jabatan||'';$('#'+p+'p').value=x.nip||'';$('#'+p+'r').innerHTML='';$('#'+p+'q').value=''}
-const gpick=()=>`<div style="background:#eef2ff;border-radius:10px;padding:12px;margin-bottom:14px"><b style="font-size:12px">Database Guru DIKO</b>${GR.tk?`<span class="b" style="margin-left:6px;background:#dcfce7;color:#166534">Terhubung</span> <button class="ghost" style="float:right" onclick="logoutDiko()">Keluar</button><input id="gq" placeholder="Ketik nama atau NIP guru…" oninput="cariGuru(this.value)" autocomplete="off" style="margin-top:8px"><div id="gr"></div><small style="color:var(--mu)">${GR.rows?GR.rows.length+' guru dimuat':'Memuat…'}</small>`:`<button onclick="openLogin()">Masuk &amp; hubungkan</button><small style="display:block;color:var(--mu);margin-top:6px">Gunakan akun DIKO (Admin Pembinaan/Admin Dinas). Tanpa login, data guru diisi manual.</small>`}</div>`;
+const gpick=()=>`<div style="background:#eef2ff;border-radius:10px;padding:12px;margin-bottom:14px"><b style="font-size:12px">Database Guru DIKO</b>${GR.tk?`<span class="b" style="margin-left:6px;background:#dcfce7;color:#166534">Terhubung</span> <button class="ghost" style="float:right" onclick="logoutDiko()">Keluar</button><input id="gq" placeholder="Ketik nama atau NIP guru…" oninput="cariGuru(this.value)" autocomplete="off" style="margin-top:8px"><div id="gr"></div><small style="color:var(--mu)">${stN(GR.rows,GR.err,'guru')}</small>`:`<button onclick="openLogin()">Masuk &amp; hubungkan</button><small style="display:block;color:var(--mu);margin-top:6px">Gunakan akun DIKO (Admin Pembinaan/Admin Dinas). Tanpa login, data guru diisi manual.</small>`}</div>`;
 
 /* ===== Sinkron ke DIKO utama (Google Sheets + Drive) =====
    Laporan -> sheet PD_Kasus; Surat Pemanggilan I/II, BAP, Surat Pelimpahan (PDF hasil template atau scan) -> folder Drive PD_DIKO.
@@ -289,11 +291,11 @@ const kt=()=>({kota:DB.ttd.kota});
 const mPg=r=>({...lm(L(r.lp)),...tm(),...kt(),no_surat:r.no,tgl_surat:tgl(r.ts),panggilan_ke:r.ke,hari_tgl:hari(r.ht),jam:r.jm,tempat:r.tm});
 const mBap=r=>({...lm(L(r.lp)),...tm(),...kt(),tgl_surat:tgl(r.ht),hari_tgl:hari(r.ht),tempat:r.tm,pw_nama:r.pw.n,pw_nip:r.pw.nip,pw_jabatan:r.pw.j,s1_nama:r.s1.n,s1_nip:r.s1.nip,s1_jabatan:r.s1.j,s2_nama:r.s2.n,s2_nip:r.s2.nip,s2_jabatan:r.s2.j,daftar_qa:r.qa.map((x,i)=>`${i+1}. Pertanyaan : ${x.q}\n    Jawaban    : ${x.a||'-'}`).join('\n\n')});
 const mPl=r=>({...lm(L(r.lp)),...tm(),...kt(),no_surat:r.no,tgl_surat:tgl(r.ts),lampiran:r.lamp,kepada:r.kpd});
-const prPg=id=>{const r=DB.pg.find(a=>a.id==id);if(DB.serverTpl&&DB.serverTpl.some(t=>String(t.jenis||'').toLowerCase()==='panggil'))return cetakDx('panggil',mPg(r),r);cetak(kop()+`<div class="body">${h(fill(DB.tpl.panggil,mPg(r)))}</div>`+ttdB(r.ts))};
-const prBap=id=>{const r=DB.bap.find(a=>a.id==id),l=L(r.lp);if(DB.serverTpl&&DB.serverTpl.some(t=>String(t.jenis||'').toLowerCase()==='bap'))return cetakDx('bap',mBap(r),r);
+const prPg=id=>{const r=DB.pg.find(a=>a.id==id);if(hasT('panggil'))return cetakDx('panggil',mPg(r),r);cetak(kop()+`<div class="body">${h(fill(DB.tpl.panggil,mPg(r)))}</div>`+ttdB(r.ts))};
+const prBap=id=>{const r=DB.bap.find(a=>a.id==id),l=L(r.lp);if(hasT('bap'))return cetakDx('bap',mBap(r),r);
 cetak(kop()+`<h3 class="c">BERITA ACARA PEMERIKSAAN</h3><div class="body">${h(fill(DB.tpl.bap,mBap(r)))}</div><div class="sig">${sg('Pemeriksa',r.pw.n,'NIP. '+h(r.pw.nip))}${sg('Yang Diperiksa',l.nama,'NIP. '+h(l.nip))}${sg('Saksi I',r.s1.n,r.s1.nip?'NIP. '+h(r.s1.nip):'')}${sg('Saksi II',r.s2.n,r.s2.nip?'NIP. '+h(r.s2.nip):'')}</div>`)};
-const prPn=id=>{const r=DB.pn.find(a=>a.id==id),l=L(r.lp);if(DB.tpl.dx_pern)return cetakDx('pern',mPn(r),r);cetak(kop()+`<h3 class="c">SURAT PERNYATAAN</h3><div class="body">${h(r.tx)}</div><div class="sig"><div>Mengetahui,<br>${h(DB.ttd.jab)}<br><br><br><br><b><u>${h(DB.ttd.nama)||'………'}</u></b><br>NIP. ${h(DB.ttd.nip)}</div><div>${h(DB.ttd.kota)}, ${tgl(r.tg)}<br>Yang membuat pernyataan,<br><span class="mt">Meterai</span><br><b><u>${h(l.nama)}</u></b><br>NIP. ${h(l.nip)}</div></div>`)};
-const prPl=id=>{const r=DB.pl.find(a=>a.id==id);if(DB.tpl.dx_limpah)return cetakDx('limpah',mPl(r),r);cetak(kop()+`<div class="body">${h(fill(DB.tpl.limpah,mPl(r)))}</div>`+ttdB(r.ts))};
+const prPn=id=>{const r=DB.pn.find(a=>a.id==id),l=L(r.lp);if(hasT('pern'))return cetakDx('pern',mPn(r),r);cetak(kop()+`<h3 class="c">SURAT PERNYATAAN</h3><div class="body">${h(r.tx)}</div><div class="sig"><div>Mengetahui,<br>${h(DB.ttd.jab)}<br><br><br><br><b><u>${h(DB.ttd.nama)||'………'}</u></b><br>NIP. ${h(DB.ttd.nip)}</div><div>${h(DB.ttd.kota)}, ${tgl(r.tg)}<br>Yang membuat pernyataan,<br><span class="mt">Meterai</span><br><b><u>${h(l.nama)}</u></b><br>NIP. ${h(l.nip)}</div></div>`)};
+const prPl=id=>{const r=DB.pl.find(a=>a.id==id);if(hasT('limpah'))return cetakDx('limpah',mPl(r),r);cetak(kop()+`<div class="body">${h(fill(DB.tpl.limpah,mPl(r)))}</div>`+ttdB(r.ts))};
 const MT='application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const erm=e=>{const er=e.properties&&e.properties.errors;return er?er.map(x=>x.properties.explanation||x.message).join('; '):e.message};
 async function mk(k,m){
@@ -307,7 +309,7 @@ async function mk(k,m){
     if (!(blob instanceof Blob)) throw new Error('Gagal membuat file dari template');
     return blob;
   }catch(e){
-    throw new Error('Template error: ' + (e.message || e));
+    throw new Error('Template error: ' + erm(e));
   }
 }
 async function wd(k,m,nm){
@@ -340,7 +342,7 @@ async function cetakDx(k,m,r,force){
     await docx.renderAsync(blob, $('#pvb'));
     $('#pvw').hidden = false;
   }catch(e){
-    $('#pvb').innerHTML = `<div class="empty">Gagal membuat pratinjau:<br>${esc(e.message || e)}</div>`;
+    $('#pvb').innerHTML = `<div class="empty">Gagal membuat pratinjau:<br>${h(e.message || e)}</div>`;
   }
 }
 const wPg=id=>{const r=DB.pg.find(a=>a.id==id);wd('panggil',mPg(r),`Pemanggilan ${r.ke} - ${L(r.lp).nama}`)};
@@ -349,14 +351,13 @@ const mPn=r=>({...lm(L(r.lp)),...tm(),...kt(),tgl_surat:tgl(r.tg),isi:r.tx});
 const wPn=id=>{const r=DB.pn.find(a=>a.id==id);wd('pern',mPn(r),`Pernyataan - ${L(r.lp).nama}`)};
 const wPl=id=>{const r=DB.pl.find(a=>a.id==id);wd('limpah',mPl(r),`Pelimpahan - ${L(r.lp).nama}`)};
 function upTpl(k,i){const f=i.files[0];if(!f)return;if(f.size>1e6)return alert('Ukuran template maksimal 1 MB.');const r=new FileReader();r.onload=async()=>{
-  try{await api('tplUpload',{jenis:k,file_base64:r.result.split(',')[1],nama:f.name});alert('Template tersimpan di server.');render()}
+  try{await api('tplUpload',{jenis:k,file_base64:r.result.split(',')[1],nama:f.name});alert('Template tersimpan di server.');await loadTpl()}
   catch(e){alert(e.message)}
 };r.readAsDataURL(f)}
 async function loadTpl(){
   try{
     const r = await api('tplList');
     DB.serverTpl = r.templates || [];
-    console.log('Template di Drive:', DB.serverTpl);
   }catch(e){
     console.error('Gagal memuat template:', e);
     DB.serverTpl = [];
@@ -364,10 +365,10 @@ async function loadTpl(){
   render();
 }
 const dxBox=k=>{
-  const has = DB.serverTpl && DB.serverTpl.some(t => String(t.jenis||'').toLowerCase() === k.toLowerCase());
+  const has = hasT(k);
   return `<div style="border:1px dashed #94a3b8;border-radius:10px;padding:12px;margin-bottom:14px"><b style="font-size:12px">Template Word (.docx) — tersimpan di Google Drive</b>${has?`<div class="row"><div><b>${k}.docx</b><small>Tersedia di semua perangkat</small></div><div><button class="ghost red" onclick="delTpl('${k}')">Hapus</button></div></div>`:'<small style="display:block;color:var(--mu);margin:4px 0">Belum ada. Unggah file .docx.</small>'}<input type="file" accept=".docx" onchange="upTpl('${k}',this)"></div>`;
 };
-async function delTpl(k){if(!confirm('Hapus template dari server?'))return;try{await api('tplDelete',{jenis:k});alert('Dihapus');render()}catch(e){alert(e.message)}}
+async function delTpl(k){if(!confirm('Hapus template dari server?'))return;try{await api('tplDelete',{jenis:k});alert('Dihapus');await loadTpl()}catch(e){alert(e.message)}}
 async function getTpl(k){const r=await api('tplGet',{jenis:k});return r.b64}
 function exp(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(DB)],{type:'application/json'}));a.download='pembinaan-disiplin-'+today+'.json';a.click()}
 function imp(i){const f=i.files[0];if(!f||!confirm('Data saat ini akan diganti dengan cadangan. Lanjutkan?'))return;const r=new FileReader();r.onload=()=>{try{DB=JSON.parse(r.result);DB.tpl={...D,...DB.tpl};save();render()}catch(e){alert('File cadangan tidak valid.')}};r.readAsText(f)}
@@ -381,6 +382,7 @@ async function loadFromServer() {
   try {
     const r = await api('pdList');
     if (r.rows && r.rows.length) {
+      let ch = 0;
       r.rows.forEach(s => {
         if (!DB.lap.find(l => l.id === s.id)) {
           DB.lap.push({
@@ -388,13 +390,15 @@ async function loadFromServer() {
             pangkat: s.pangkat, jabatan: s.jabatan, sekolah: s.sekolah, statusPeg: s.status_peg,
             pelanggaran: s.pelanggaran, status: s.proses || 'Laporan', sy: 1
           });
+          ch = 1;
         }
       });
-      save();
-      render();
+      if (ch) { save(); render(); }
     }
   } catch (e) {}
 }
-if(GR.tk&&!GR.user)api('bootstrap').then(r=>{GR.user=r.user||null;GR.refs=r.refs||[];render();loadFromServer();loadTpl()}).catch(()=>{});
-loadFromServer();loadTpl();
+/* ===== Mulai ===== */
+render();
+if(GR.tk&&!GR.user)api('bootstrap').then(r=>{GR.user=r.user||null;GR.refs=r.refs||[];render()}).catch(()=>{});
+if(GR.tk){loadGuru();loadTpl();loadFromServer()}
 </script></body></html>
