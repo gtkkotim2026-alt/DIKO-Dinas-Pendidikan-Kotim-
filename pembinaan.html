@@ -158,7 +158,24 @@ const h=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;
 const O={day:'numeric',month:'long',year:'numeric'},tgl=d=>d?new Date(d+'T00:00').toLocaleDateString('id-ID',O):'…',hari=d=>d?new Date(d+'T00:00').toLocaleDateString('id-ID',{weekday:'long',...O}):'…';
 const ST=['Laporan','Pemanggilan I','Pemanggilan II','Pelimpahan'],L=id=>DB.lap.find(x=>x.id==id)||{};
 const fill=(t,m)=>t.replace(/\{\{(\w+)\}\}/g,(_,k)=>m[k]||'…');
-function save(){try{localStorage.setItem(K,JSON.stringify(DB));setTimeout(pdFlush,0);return true}catch(e){alert('Penyimpanan browser penuh. Hapus dokumen lama atau unduh cadangan.');return false}}
+/* ===== Penyimpanan: data kecil di localStorage, berkas & foto besar di IndexedDB (database browser, kapasitas jauh lebih besar) ===== */
+let IDBOK=0,BL=0;const BS=new WeakMap();
+const idb=()=>new Promise((res,rej)=>{if(!window.indexedDB)return rej(Error('no idb'));const q=indexedDB.open('pd_diko',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)});
+const idbGet=async k=>{const d=await idb();return new Promise((res,rej)=>{const r=d.transaction('kv').objectStore('kv').get(k);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})};
+const idbSet=async(k,v)=>{const d=await idb();return new Promise((res,rej)=>{const t=d.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})};
+const lsJson=()=>JSON.stringify(DB,function(k,v){if(IDBOK){if(k==='data'&&'jn' in this)return undefined;if(k==='foto'&&'qa' in this)return undefined}return v});
+async function blobFlush(){if(!IDBOK||!BL)return;try{const d=await idb();await new Promise((res,rej)=>{const t=d.transaction('kv','readwrite'),os=t.objectStore('kv'),want=new Set();
+DB.dok.forEach(x=>{if(x.data){want.add('dok:'+x.id);if(BS.get(x)!==x.data.length){os.put(x.data,'dok:'+x.id);BS.set(x,x.data.length)}}});
+DB.bap.forEach(x=>{if(x.foto&&x.foto.length){want.add('foto:'+x.id);if(BS.get(x)!==x.foto.length){os.put(x.foto,'foto:'+x.id);BS.set(x,x.foto.length)}}});
+os.getAllKeys().onsuccess=e=>e.target.result.forEach(k=>{if(/^(dok|foto):/.test(k)&&!want.has(k))os.delete(k)});
+t.oncomplete=()=>res();t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)})}catch(e){alert('Gagal menyimpan berkas/foto ke database browser: '+(e&&e.message||e))}}
+async function blobLoad(){try{await idb();IDBOK=1;localStorage.removeItem('pd_guru_peg');
+for(const x of DB.dok){if(!x.data){const v=await idbGet('dok:'+x.id);if(v)x.data=v}}
+for(const x of DB.bap){if(!(x.foto&&x.foto.length)){const v=await idbGet('foto:'+x.id);if(v)x.foto=v}}
+/* data lama yang masih di localStorage dipindahkan sekali */
+const lg=DB.dok.some(x=>x.data)||DB.bap.some(x=>x.foto&&x.foto.length);BL=1;if(lg){await blobFlush();try{localStorage.setItem(K,lsJson())}catch(e){}}}
+catch(e){IDBOK=0}BL=1}
+function save(){try{localStorage.setItem(K,lsJson());blobFlush();setTimeout(pdFlush,0);return true}catch(e){alert('Penyimpanan browser penuh. Hapus dokumen lama atau unduh cadangan.');return false}}
 const inp=(id,l,v='',t='text')=>`<label>${l}<input id="${id}" type="${t}" value="${h(v)}"></label>`;
 const ta=(id,l,v='',r=4)=>`<label>${l}<textarea id="${id}" rows="${r}">${h(v)}</textarea></label>`;
 const sel=(id,l,o,v,ex='')=>`<label>${l}<select id="${id}" ${ex}>${o.map(x=>{const[a,b]=Array.isArray(x)?x:[x,x];return`<option value="${h(a)}"${a==v?' selected':''}>${h(b)}</option>`}).join('')}</select></label>`;
@@ -185,7 +202,10 @@ addEventListener('keydown',e=>{if(e.key==='Escape'&&PV)pvClose()});
 const adv=(id,s)=>{const l=DB.lap.find(a=>a.id==id);if(l&&ST.indexOf(s)>ST.indexOf(l.status)){l.status=s;l.sy=0}};
 const TK={pg:'panggil',bap:'bap',pn:'pern',pl:'limpah'};
 const rowH=(t,s,pr,k,id,wf,ex)=>{const r=`<div class="row"${ex?' style="border:0;padding-bottom:6px"':''}><div><b>${h(t)}</b><small>${h(s)}</small></div><div>${pr?`<button class="ghost" onclick="${pr}('${id}')">Pratinjau</button>`:''}${wf&&hasT(TK[k])?`<button class="ghost" onclick="${wf}('${id}')">Word</button>`:''}<button class="ghost red" onclick="del('${k}','${id}')">Hapus</button></div></div>`;return ex?`<div style="border-bottom:1px solid var(--ln);padding-bottom:12px">${r}${ex}</div>`:r};
-const del=(k,id)=>{if(confirm('Hapus data ini?')){DB[k]=DB[k].filter(a=>a.id!=id);if(k=='lap')['pg','bap','pn','pl','dok'].forEach(x=>DB[x]=DB[x].filter(a=>a.lp!=id));save();render()}};
+const delSrv=(k,id)=>{const q=DB.sdel||(DB.sdel=[]);
+if(k=='dok'){const d=DB.dok.find(a=>a.id==id);if(d&&d.sy&&!d.er&&pdJ(d.jn))q.push({lp:d.lp,j:pdJ(d.jn)})}
+if(k=='bap'){const b=DB.bap.find(a=>a.id==id);if(b)for(let i=1;i<=(b.fn||0);i++)q.push({lp:b.lp,j:'Dokumentasi '+i})}};
+const del=(k,id)=>{if(confirm('Hapus data ini?')){delSrv(k,id);DB[k]=DB[k].filter(a=>a.id!=id);if(k=='lap')['pg','bap','pn','pl','dok'].forEach(x=>DB[x]=DB[x].filter(a=>a.lp!=id));save();render()}};
 const lst=(k,f,pr)=>DB[k].length?DB[k].map(f).join(''):'<div class="empty">Belum ada data.</div>';
 const pg=(t,s,body)=>`<p class="sub">${s}</p>${body}`;
 let ed=null,sl='',pEd=null;
@@ -205,7 +225,7 @@ async function loadGuru(force){
   const CK='pd_guru_peg',TTL=15*24*60*60*1000;
   if(!force){
     try{
-      const c=JSON.parse(localStorage.getItem(CK)||'null');
+      const c=IDBOK?await idbGet(CK):JSON.parse(localStorage.getItem(CK)||'null');
       if(c&&Date.now()-c.t<TTL&&c.guru&&c.guru.length&&c.peg&&c.peg.length){
         GR.rows=c.guru;GR.peg=c.peg;GR.err=GR.errP='';render();return;
       }
@@ -218,7 +238,7 @@ async function loadGuru(force){
   if(pe.status==='fulfilled')GR.peg=pe.value.rows||[];
   else GR.errP=(pe.reason&&pe.reason.message)||'gagal';
   LG=0;
-  if(GR.rows&&GR.peg){try{localStorage.setItem(CK,JSON.stringify({t:Date.now(),guru:GR.rows,peg:GR.peg}))}catch(e){}}
+  if(GR.rows&&GR.peg){const v={t:Date.now(),guru:GR.rows,peg:GR.peg};try{IDBOK?await idbSet(CK,v):localStorage.setItem(CK,JSON.stringify(v))}catch(e){}}
   render();
 }
 async function loginDiko(){try{const r=await api('login',{username:g('gu'),password:g('gp')});GR.tk=r.token;GR.user=r.user||null;GR.refs=r.refs||[];sessionStorage.setItem('pdtk',r.token);sessionStorage.setItem('pdus',JSON.stringify(GR.user));$('#lgm').hidden=true;$('#gp').value='';sessionStorage.setItem('pdrf',JSON.stringify(GR.refs));GR.rows=null;GR.peg=null;GR.err=GR.errP='';render();loadGuru(1);loadTpl();loadFromServer()}catch(e){alert(e.message)}}
@@ -244,20 +264,46 @@ const gpick=()=>`<div style="background:#eef2ff;border-radius:10px;padding:12px;
    Laporan -> sheet PD_Kasus; Surat Pemanggilan I/II, BAP, Surat Pelimpahan (PDF hasil template atau scan) -> folder Drive PD_DIKO.
    Item yang belum terkirim ditandai sy!=1 dan dicoba lagi otomatis (setiap simpan / saat dibuka). */
 let PDF=0;
-const pdJ=jn=>({'Pemanggilan I':'Pemanggilan I','Pemanggilan II':'Pemanggilan II','BAP':'BAP','Surat Pelimpahan':'Pelimpahan'})[String(jn||'').replace(/ \(PDF\)$/,'')]||'';
+const pdJ=jn=>({'Pemanggilan I':'Pemanggilan I','Pemanggilan II':'Pemanggilan II','BAP':'BAP','Surat Pelimpahan':'Pelimpahan','Surat Pernyataan':'Pernyataan'})[String(jn||'').replace(/ \(PDF\)$/,'')]||'';
 function synMsg(t,ok){let e=$('#syn');if(!e){e=document.createElement('div');e.id='syn';e.style.cssText='position:fixed;right:14px;bottom:14px;z-index:70;padding:8px 14px;border-radius:99px;font-size:12px;font-weight:700;box-shadow:0 4px 14px #0003';document.body.appendChild(e)}
 e.textContent=t;e.style.background=ok?'#dcfce7':'#fef3c7';e.style.color=ok?'#166534':'#92400e';clearTimeout(e._t);e._t=setTimeout(()=>e.remove(),ok?3000:8000)}
-async function pdFlush(){if(PDF||!GR.tk)return;
-const pl=DB.lap.filter(l=>!l.sy),pd=DB.dok.filter(d=>!d.sy);if(!pl.length&&!pd.length)return;
+/* Perbaikan data lama (sekali): berkas yang dulu ditandai "terkirim" padahal tidak pernah sampai ke server */
+const dataJpeg=u=>new Promise((res,rej)=>{const im=new Image();im.onerror=()=>rej(Error('gambar tidak valid'));im.onload=()=>{const k=Math.min(1,1600/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.85))};im.src=u});
+async function migSync(){if(DB.mig15)return;
+for(const d of DB.dok){if(!d.data||d.rid)continue;
+if(!/^data:(application\/pdf|image\/jpeg|image\/png)[;,]/.test(d.data)&&/^data:image\//.test(d.data)){try{d.data=await dataJpeg(d.data);d.nm=String(d.nm).replace(/\.[^.]+$/,'')+'.jpg';d.sy=0;delete d.er}catch(e){}}
+else if(d.jn==='Surat Pernyataan'&&d.sy&&!d.er)d.sy=0;
+else if(d.sy&&!d.er&&d.data.length>2.8e6)d.sy=0}
+DB.mig15=1;save()}
+const sigF=b=>(b.foto||[]).map(u=>u.length+':'+u.slice(-24)).join('|');
+const SJ={'Pemanggilan I':'Pemanggilan I','Pemanggilan II':'Pemanggilan II','BAP':'BAP','Pelimpahan':'Surat Pelimpahan','Pernyataan':'Surat Pernyataan'};
+async function pdFlush(){if(PDF||!GR.tk||!BL)return;
+const sd=DB.sdel||(DB.sdel=[]),pl=DB.lap.filter(l=>!l.sy),pd=DB.dok.filter(d=>!d.sy),
+pf=DB.bap.filter(b=>sigF(b)!==(b.fsig||'')&&(DB.lap.find(a=>a.id==b.lp)||{}).sy);
+if(!pl.length&&!pd.length&&!pf.length&&!sd.length)return;
 PDF=1;let ch=0,er='';
 try{
+/* penghapusan di server (berkas/foto yang dihapus di sini) */
+for(const x of sd.slice()){try{await api('pdDokHapus',{kasus_id:x.lp,jenis:x.j});DB.sdel=DB.sdel.filter(y=>y!==x);ch=1}catch(e){er=er||e.message}}
 for(const l of pl){try{await api('pdSync',{kasus:{id:l.id,no:l.no,tgl:l.tgl,nama:l.nama,nip:l.nip,pangkat:l.pangkat,jabatan:l.jabatan,sekolah:l.sekolah,statusPeg:l.statusPeg,pelanggaran:l.pelanggaran,status:l.status}});l.sy=1;ch=1}catch(e){er=er||e.message}}
 for(const d of pd){const j=pdJ(d.jn);if(!j){d.sy=1;ch=1;continue}
-const m=/^data:([^;]+);base64,(.*)$/.exec(d.data||'');if(!m){d.sy=1;continue}
+const m=/^data:([^;]+);base64,(.*)$/.exec(d.data||'');if(!m){d.sy=1;d.er='Isi berkas tidak ditemukan';ch=1;continue}
 if(!(DB.lap.find(a=>a.id==d.lp)||{}).sy)continue;
-try{await api('pdUpload',{kasus_id:d.lp,jenis:j,file_name:d.nm,mime:m[1],file_base64:m[2]});d.sy=1;ch=1}catch(e){if(/terlalu besar|Format file/.test(e.message)){d.sy=1;ch=1}er=er||e.message}}
-}finally{PDF=0;if(ch)try{localStorage.setItem(K,JSON.stringify(DB))}catch(e){}
+try{await api('pdUpload',{kasus_id:d.lp,jenis:j,file_name:d.nm,mime:m[1],file_base64:m[2]});d.sy=1;delete d.er;ch=1}
+catch(e){if(/terlalu besar|Format file|Jenis dokumen/.test(e.message)){d.sy=1;d.er=e.message;ch=1;er=er||('Berkas "'+d.nm+'" tidak dapat disimpan di server: '+e.message)}else er=er||e.message}}
+/* foto dokumentasi BAP -> "Dokumentasi 1..n" di server */
+for(const b of pf){const fs=b.foto||[],on=b.fn||0;let ok=1;
+for(let i=0;i<fs.length&&ok;i++){const m=/^data:([^;]+);base64,(.*)$/.exec(fs[i]);if(!m)continue;
+try{await api('pdUpload',{kasus_id:b.lp,jenis:'Dokumentasi '+(i+1),file_name:'Dokumentasi '+(i+1)+'.jpg',mime:m[1],file_base64:m[2]})}catch(e){ok=0;er=er||e.message}}
+for(let i=fs.length;i<on&&ok;i++){try{await api('pdDokHapus',{kasus_id:b.lp,jenis:'Dokumentasi '+(i+1)})}catch(e){ok=0;er=er||e.message}}
+if(ok){b.fsig=sigF(b);b.fn=fs.length;ch=1}}
+}finally{PDF=0;if(ch)try{localStorage.setItem(K,lsJson())}catch(e){}
 if(er)synMsg('⚠ Sinkron ke DIKO tertunda: '+er,0);else if(ch)synMsg('☁ Tersinkron ke DIKO',1)}}
+/* buka berkas yang hanya ada di server (mis. diunggah dari komputer lain) */
+async function getDok(id){const x=DB.dok.find(a=>a.id==id);if(!x)return;
+try{const f=await api('pdFile',{id:x.rid});x.data='data:'+f.mime+';base64,'+f.b64;if(!save())return;render();
+const a=document.createElement('a');a.href=x.data;a.download=x.jn+' - '+(L(x.lp).nama||'')+' - '+x.nm;a.click()}catch(e){alert(e.message)}}
+const stB=x=>x.er?`<span class="b s3" title="${h(x.er)}">gagal ke server</span>`:x.sy?'<span class="b" style="background:#dcfce7;color:#166534">☁ di server</span>':'<span class="b s1">menunggu kirim</span>';
 
 const P={
 lap(){const x=DB.lap.find(a=>a.id==ed)||{};return pg('Laporan Tindakan Disiplin','Awal proses: laporan → pemanggilan I → pemanggilan II → pelimpahan.',`<div class="grid"><section class="card"><h2>${ed?'Ubah':'Input'} Laporan</h2>${gpick()}
@@ -281,8 +327,8 @@ tl:()=>tpl('limpah','Template Surat Pelimpahan',['no_surat','lampiran','kepada']
 ttd(){const t=DB.ttd,x=DB.pen.find(a=>a.id==pEd)||{};return pg('Penandatangan Surat Dinas','Kop surat dan daftar penandatangan (Kepala Dinas, Sekretaris, a.n. Kepala Dinas, dst.) yang dapat dipilih pada setiap dokumen.',`<div class="grid"><section class="card"><h2>Kop &amp; Kota</h2>${inp('i1','Kop baris 1',t.i1)}${inp('i2','Kop baris 2 (instansi)',t.i2)}${inp('al','Alamat kop',t.alamat)}${inp('ko','Kota penandatanganan',t.kota)}<button onclick="saveTtd()">Simpan</button></section>
 <section class="card"><h2>${pEd?'Ubah':'Tambah'} Penandatangan</h2>${pegBox('pt')}${inp('ptl','Nama pilihan (mis. Sekretaris)',x.lb)}${inp('pta','Atas nama (mis. a.n. Kepala Dinas Pendidikan; kosongkan bila tidak)',x.an)}${inp('ptj','Jabatan',x.jab)}${inp('ptn','Nama',x.nama)}<div class="r2">${inp('ptp','NIP',x.nip)}${inp('ptk','Pangkat/Gol.',x.pangkat)}</div><div class="act"><button onclick="savePen()">Simpan</button>${pEd?'<button class="ghost" onclick="pEd=null;render()">Batal</button>':''}</div>
 <h2 style="margin-top:18px">Daftar Penandatangan (${DB.pen.length})</h2>${DB.pen.map(y=>`<div class="row"><div><b>${h(y.lb||y.jab)}</b>${DB.penDef==y.id?' <span class="b s1">Default</span>':''}<small>${h(y.an?y.an+' · ':'')}${h(y.jab)}</small><small>${h(y.nama)||'(nama belum diisi)'}${y.nip?' · NIP. '+h(y.nip):''}</small></div><div><button class="ghost" onclick="pEd='${y.id}';render()">Ubah</button><button class="ghost" onclick="setPenDef('${y.id}')">Default</button><button class="ghost red" onclick="delPen('${y.id}')">Hapus</button></div></div>`).join('')}</section></div>`)},
-dok(){const J=['Pemanggilan I','Pemanggilan II','BAP','Surat Pernyataan','Surat Pelimpahan'];return pg('Dokumen Pemeriksaan','Unggah hasil scan/foto bertanda tangan (PDF/JPG/PNG, maks. 1,5 MB), terhubung ke data laporan awal.',`<div class="grid"><section class="card"><h2>Unggah Dokumen</h2>${sel('lp','Laporan',lapO(),sl)}${sel('jn','Jenis dokumen',J,'')}<label>File<input id="fl" type="file" accept=".pdf,image/*"></label><button onclick="upDok()">Unggah</button></section>
-<section class="card"><h2>Berkas per Laporan</h2>${DB.lap.map(l=>{const d=DB.dok.filter(x=>x.lp==l.id);return`<div class="row" style="display:block"><b>${h(l.nama)}</b> <span class="b s${ST.indexOf(l.status)}">${l.status}</span><small>${h(l.pelanggaran)} · laporan ${tgl(l.tgl)}</small>${d.length?d.map(x=>`<div class="row"><div><a href="${x.data}" download="${h(x.jn+' - '+l.nama+' - '+x.nm)}">${h(x.jn)}</a><small>${h(x.nm)}</small></div><div><button class="ghost red" onclick="del('dok','${x.id}')">Hapus</button></div></div>`).join(''):'<small>Belum ada berkas.</small>'}</div>`}).join('')||'<div class="empty">Belum ada laporan.</div>'}</section></div>`)}};
+dok(){const J=['Pemanggilan I','Pemanggilan II','BAP','Surat Pernyataan','Surat Pelimpahan'];return pg('Dokumen Pemeriksaan','Unggah hasil scan/foto bertanda tangan (PDF atau gambar; PDF maks. 1,5 MB, gambar otomatis dikecilkan). Berkas disimpan juga di server DIKO (Google Drive).',`<div class="grid"><section class="card"><h2>Unggah Dokumen</h2>${sel('lp','Laporan',lapO(),sl)}${sel('jn','Jenis dokumen',J,'')}<label>File<input id="fl" type="file" accept=".pdf,image/*"></label><button onclick="upDok()">Unggah</button></section>
+<section class="card"><h2>Berkas per Laporan</h2>${DB.lap.map(l=>{const d=DB.dok.filter(x=>x.lp==l.id);return`<div class="row" style="display:block"><b>${h(l.nama)}</b> <span class="b s${ST.indexOf(l.status)}">${l.status}</span><small>${h(l.pelanggaran)} · laporan ${tgl(l.tgl)}</small>${d.length?d.map(x=>`<div class="row"><div>${x.data?`<a href="${x.data}" download="${h(x.jn+' - '+l.nama+' - '+x.nm)}">${h(x.jn)}</a>`:x.rid?`<a href="#" onclick="getDok('${x.id}');return false">${h(x.jn)}</a>`:`<b>${h(x.jn)}</b> <span class="b s3">berkas tidak ditemukan</span>`} ${stB(x)}<small>${h(x.nm)}${x.er?' · '+h(x.er):''}</small></div><div><button class="ghost red" onclick="del('dok','${x.id}')">Hapus</button></div></div>`).join(''):'<small>Belum ada berkas.</small>'}</div>`}).join('')||'<div class="empty">Belum ada laporan.</div>'}</section></div>`)}};
 const M=[['lap','Laporan Tindakan','📊'],['pg','Pemanggilan','👤'],['bap','BAP','📄'],['pn','Surat Pernyataan','⚖️'],['pl','Surat Pelimpahan','🤝'],['tp','Template Pemanggilan','📄'],['tb','Template BAP','📄'],['tpn','Template Pernyataan','📄'],['tl','Template Pelimpahan','📄'],['ttd','Penandatangan','⚙️'],['dok','Dokumen','📁']];
 const TT={lap:'Laporan Tindakan Disiplin',pg:'Pemanggilan',bap:'Berita Acara Pemeriksaan',pn:'Surat Pernyataan',pl:'Surat Pelimpahan ke BKPSDM',tp:'Template Pemanggilan',tb:'Template BAP',tpn:'Template Pernyataan',tl:'Template Pelimpahan',ttd:'Penandatangan Surat Dinas',dok:'Dokumen Pemeriksaan'},RL={superadmin:'Super Admin',admin_dinas:'Admin Dinas',pimpinan:'Pimpinan',guru:'Guru',sekolah:'Sekolah',admin_pembinaan:'Admin Pembinaan',admin_mediasi:'Admin Mediasi',admin_mutasi:'Admin Mutasi'};
 const openLogin=()=>{$('#lgm').hidden=false;$('#gu').focus()};
@@ -304,7 +350,17 @@ function savePg(){const lp=need();if(!lp)return;if(!g('ht')&&!confirm('Hari/tang
 function saveBap(){const lp=need();if(!lp)return;const qs=DB.tpl.bapQ.split('\n').filter(Boolean);DB.bap.push({id:uid(),lp,sg:g('sg'),ht:g('ht'),tm:g('tm'),pw:{n:g('pwn'),j:g('pwj'),nip:g('pwp')},s1:{n:g('s1n'),j:g('s1j'),nip:g('s1p')},s2:{n:g('s2n'),j:g('s2j'),nip:g('s2p')},qa:qs.map((q,i)=>({q:fill(q,lm(L(lp))),a:g('a'+i)}))});save();sl='';render()}
 function savePn(){const lp=need();if(!lp)return;DB.pn.push({id:uid(),lp,tg:g('tg'),tx:g('tx'),sg:g('sg')});save();sl='';render()}
 function savePl(){const lp=need();if(!lp)return;DB.pl.push({id:uid(),lp,no:g('no'),ts:g('ts'),lamp:g('lamp'),kpd:g('kpd'),sg:g('sg')});adv(lp,'Pelimpahan');save();render()}
-function upDok(){const lp=need();if(!lp)return;const f=$('#fl').files[0];if(!f)return alert('Pilih file.');if(f.size>1.5e6)return alert('Ukuran file maksimal 1,5 MB.');const r=new FileReader();r.onload=()=>{DB.dok.push({id:uid(),lp,jn:g('jn'),nm:f.name,data:r.result});sl=lp;if(save())render()};r.readAsDataURL(f)}
+const rdURL=f=>new Promise((res,rej)=>{const r=new FileReader();r.onerror=()=>rej(Error('Gagal membaca berkas'));r.onload=()=>res(r.result);r.readAsDataURL(f)});
+/* gambar apa pun (JPG/PNG/WebP/HEIC bila didukung browser) -> JPEG, sisi terpanjang maks. px; server hanya menerima PDF/JPG/PNG */
+function imgJpeg(f,px){return new Promise((res,rej)=>{const u=URL.createObjectURL(f),im=new Image();im.onerror=()=>{URL.revokeObjectURL(u);rej(Error('Berkas bukan gambar yang valid'))};
+im.onload=()=>{URL.revokeObjectURL(u);const k=Math.min(1,px/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.85))};im.src=u})}
+async function upDok(){const lp=need();if(!lp)return;const f=$('#fl').files[0];if(!f)return alert('Pilih file.');
+let data,nm=f.name;
+try{if(/^image\//.test(f.type)){data=await imgJpeg(f,1600);for(const px of[1200,900])if(data.length>2e6)data=await imgJpeg(f,px);nm=nm.replace(/\.[^.]+$/,'')+'.jpg'}
+else if(f.type==='application/pdf'||/\.pdf$/i.test(f.name)){if(f.size>1.5e6)return alert('Ukuran PDF maksimal 1,5 MB.');data=await rdURL(f);if(!/^data:application\/pdf/.test(data))data=data.replace(/^data:[^;]*/,'data:application/pdf')}
+else return alert('Format berkas harus PDF atau gambar (JPG/PNG/WebP).')}catch(e){return alert(e.message)}
+const jn=g('jn');DB.sdel=(DB.sdel||[]).filter(y=>!(y.lp==lp&&y.j==pdJ(jn)));
+DB.dok.push({id:uid(),lp,jn,nm,data});sl=lp;if(save())render()}
 const kt=()=>({kota:DB.ttd.kota});
 const mPg=r=>({...lm(L(r.lp)),...tm(r.sg),...kt(),no_surat:r.no,tgl_surat:tgl(r.ts),panggilan_ke:r.ke,hari_tgl:hari(r.ht),jam:r.jm,tempat:r.tm});
 const mBap=r=>({fotoDok:r.foto||[],...lm(L(r.lp)),...tm(r.sg),...kt(),tgl_surat:tgl(r.ht),hari_tgl:hari(r.ht),tempat:r.tm,pw_nama:r.pw.n,pw_nip:r.pw.nip,pw_jabatan:r.pw.j,s1_nama:r.s1.n,s1_nip:r.s1.nip,s1_jabatan:r.s1.j,s2_nama:r.s2.n,s2_nip:r.s2.nip,s2_jabatan:r.s2.j,daftar_qa:r.qa.map((x,i)=>`${i+1}. Pertanyaan : ${x.q}\n    Jawaban    : ${x.a||'-'}`).join('\n\n'),qa:r.qa.map((x,i)=>({no:i+1,q:x.q,a:String(x.a||'').trim()||'-'}))});
@@ -328,7 +384,7 @@ im.onload=()=>{const W=600,H=Math.round(W*FH/FW),c=document.createElement('canva
 x.fillStyle='#fff';x.fillRect(0,0,W,H);x.drawImage(im,(W-w)/2,(H-hh)/2,w,hh);res(c.toDataURL('image/jpeg',.82))};im.src=fr.result};fr.readAsDataURL(file)})}
 const fotoBox=r=>{const f=r.foto||[];return`<div style="background:#f8fafc;border:1px dashed #94a3b8;border-radius:10px;padding:10px"><b style="font-size:12px">📷 Foto Dokumentasi (${f.length})</b><small style="display:block;color:var(--mu);margin:2px 0 6px">Foto otomatis dipotong ${FW}×${FH} cm dan ditambahkan pada halaman DOKUMENTASI setelah BAP.</small><input type="file" accept="image/*" multiple onchange="upFoto('${r.id}',this)">${f.length?`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">${f.map((u,i)=>`<div style="position:relative"><img src="${u}" alt="" style="width:64px;height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--ln);display:block"><button class="ghost red" style="position:absolute;top:-7px;right:-7px;padding:0;width:20px;height:20px;border-radius:50%;line-height:1" onclick="delFoto('${r.id}',${i})">×</button></div>`).join('')}</div>`:''}</div>`};
 async function upFoto(id,inp){const r=DB.bap.find(a=>a.id==id),fs=[...inp.files].filter(f=>/^image\//.test(f.type));if(!r||!fs.length){inp.value='';return}
-const old=(r.foto||[]).slice();r.foto=old.slice();
+const old=(r.foto||[]).slice();if(old.length+fs.length>24){inp.value='';return alert('Maksimal 24 foto per BAP.')}r.foto=old.slice();
 try{for(const f of fs)r.foto.push(await cropFoto(f))}catch(e){r.foto=old;inp.value='';return alert(e.message)}
 if(!save()){r.foto=old}render()}
 function delFoto(id,i){const r=DB.bap.find(a=>a.id==id);if(!r||!r.foto||!confirm('Hapus foto ini?'))return;r.foto.splice(i,1);save();render()}
@@ -471,12 +527,22 @@ async function loadFromServer() {
           ch = 1;
         }
       });
+      r.rows.forEach(s => {
+        if (!DB.lap.find(l => l.id === s.id)) return;
+        (s.dokumen || []).forEach(d => {
+          const jn = SJ[d.jenis]; if (!jn) return;
+          if (DB.dok.some(x => x.lp === s.id && x.jn === jn)) return;
+          if ((DB.sdel || []).some(y => y.lp === s.id && y.j === d.jenis)) return;
+          DB.dok.push({ id: uid(), lp: s.id, jn, nm: d.nama_file || jn, rid: d.id, sy: 1 }); ch = 1;
+        });
+      });
       if (ch) { save(); render(); }
     }
   } catch (e) {}
 }
 /* ===== Mulai ===== */
-render();
+(async()=>{await blobLoad();await migSync();render();
 if(GR.tk&&!GR.user)api('bootstrap').then(r=>{GR.user=r.user||null;GR.refs=r.refs||[];render()}).catch(()=>{});
 if(GR.tk){loadGuru();loadTpl();loadFromServer()}
+setTimeout(pdFlush,500)})();
 </script></body></html>
