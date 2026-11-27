@@ -307,20 +307,43 @@ function savePl(){const lp=need();if(!lp)return;DB.pl.push({id:uid(),lp,no:g('no
 function upDok(){const lp=need();if(!lp)return;const f=$('#fl').files[0];if(!f)return alert('Pilih file.');if(f.size>1.5e6)return alert('Ukuran file maksimal 1,5 MB.');const r=new FileReader();r.onload=()=>{DB.dok.push({id:uid(),lp,jn:g('jn'),nm:f.name,data:r.result});sl=lp;if(save())render()};r.readAsDataURL(f)}
 const kt=()=>({kota:DB.ttd.kota});
 const mPg=r=>({...lm(L(r.lp)),...tm(r.sg),...kt(),no_surat:r.no,tgl_surat:tgl(r.ts),panggilan_ke:r.ke,hari_tgl:hari(r.ht),jam:r.jm,tempat:r.tm});
-const mBap=r=>({...lm(L(r.lp)),...tm(r.sg),...kt(),tgl_surat:tgl(r.ht),hari_tgl:hari(r.ht),tempat:r.tm,pw_nama:r.pw.n,pw_nip:r.pw.nip,pw_jabatan:r.pw.j,s1_nama:r.s1.n,s1_nip:r.s1.nip,s1_jabatan:r.s1.j,s2_nama:r.s2.n,s2_nip:r.s2.nip,s2_jabatan:r.s2.j,daftar_qa:r.qa.map((x,i)=>`${i+1}. Pertanyaan : ${x.q}\n    Jawaban    : ${x.a||'-'}`).join('\n\n')});
+const mBap=r=>({...lm(L(r.lp)),...tm(r.sg),...kt(),tgl_surat:tgl(r.ht),hari_tgl:hari(r.ht),tempat:r.tm,pw_nama:r.pw.n,pw_nip:r.pw.nip,pw_jabatan:r.pw.j,s1_nama:r.s1.n,s1_nip:r.s1.nip,s1_jabatan:r.s1.j,s2_nama:r.s2.n,s2_nip:r.s2.nip,s2_jabatan:r.s2.j,daftar_qa:r.qa.map((x,i)=>`${i+1}. Pertanyaan : ${x.q}\n    Jawaban    : ${x.a||'-'}`).join('\n\n'),qa:r.qa.map((x,i)=>({no:i+1,q:x.q,a:String(x.a||'').trim()||'-'}))});
 const mPl=r=>({...lm(L(r.lp)),...tm(r.sg),...kt(),no_surat:r.no,tgl_surat:tgl(r.ts),lampiran:r.lamp,kepada:r.kpd});
 const prPg=id=>{const r=DB.pg.find(a=>a.id==id);if(hasT('panggil'))return cetakDx('panggil',mPg(r),r);cetak(kop()+`<div class="body">${h(fill(DB.tpl.panggil,mPg(r)))}</div>`+ttdB(r.ts,r.sg))};
+const bapHtml=r=>{const m=mBap(r),t=DB.tpl.bap.split('{{daftar_qa}}'),b=x=>`<div class="body">${h(fill(x,m))}</div>`;
+const q=r.qa.map((x,i)=>`<div style="display:grid;grid-template-columns:2.2em 6em 1em 1fr;margin-top:.6em;text-align:left;break-inside:avoid"><span>${i+1}.</span><span>Pertanyaan</span><span>:</span><span style="text-align:justify">${h(x.q)}</span><span></span><span>Jawaban</span><span>:</span><span style="text-align:justify">${h(String(x.a||'').trim()||'-').replace(/\n/g,'<br>')}</span></div>`).join('');
+return t.length>1?b(t[0])+`<div>${q}</div>`+b(t.slice(1).join('')):b(DB.tpl.bap)};
 const prBap=id=>{const r=DB.bap.find(a=>a.id==id),l=L(r.lp);if(hasT('bap'))return cetakDx('bap',mBap(r),r);
-cetak(kop()+`<h3 class="c">BERITA ACARA PEMERIKSAAN</h3><div class="body">${h(fill(DB.tpl.bap,mBap(r)))}</div><div class="sig">${sg('Pemeriksa',r.pw.n,'NIP. '+h(r.pw.nip))}${sg('Yang Diperiksa',l.nama,'NIP. '+h(l.nip))}${sg('Saksi I',r.s1.n,r.s1.nip?'NIP. '+h(r.s1.nip):'')}${sg('Saksi II',r.s2.n,r.s2.nip?'NIP. '+h(r.s2.nip):'')}</div>`)};
+cetak(kop()+`<h3 class="c">BERITA ACARA PEMERIKSAAN</h3>${bapHtml(r)}<div class="sig">${sg('Pemeriksa',r.pw.n,'NIP. '+h(r.pw.nip))}${sg('Yang Diperiksa',l.nama,'NIP. '+h(l.nip))}${sg('Saksi I',r.s1.n,r.s1.nip?'NIP. '+h(r.s1.nip):'')}${sg('Saksi II',r.s2.n,r.s2.nip?'NIP. '+h(r.s2.nip):'')}</div>`)};
 const prPn=id=>{const r=DB.pn.find(a=>a.id==id),l=L(r.lp);if(hasT('pern'))return cetakDx('pern',mPn(r),r);cetak(kop()+`<h3 class="c">SURAT PERNYATAAN</h3><div class="body">${h(r.tx)}</div><div class="sig"><div>Mengetahui,<br>${pen(r.sg).an?h(pen(r.sg).an)+'<br>':''}${h(pen(r.sg).jab)}<br><br><br><br><b><u>${h(pen(r.sg).nama)||'………'}</u></b><br>NIP. ${h(pen(r.sg).nip)}</div><div>${h(DB.ttd.kota)}, ${tgl(r.tg)}<br>Yang membuat pernyataan,<br><span class="mt">Meterai</span><br><b><u>${h(l.nama)}</u></b><br>NIP. ${h(l.nip)}</div></div>`)};
 const prPl=id=>{const r=DB.pl.find(a=>a.id==id);if(hasT('limpah'))return cetakDx('limpah',mPl(r),r);cetak(kop()+`<div class="body">${h(fill(DB.tpl.limpah,mPl(r)))}</div>`+ttdB(r.ts,r.sg))};
 const MT='application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const erm=e=>{const er=e.properties&&e.properties.errors;return er?er.map(x=>x.properties.explanation||x.message).join('; '):e.message};
+/* Tata naskah dinas: Pertanyaan/Jawaban sebagai paragraf bernomor dengan hanging indent.
+   Template Word lama yang memuat {{daftar_qa}} sendirian dalam satu paragraf otomatis diubah menjadi daftar rapi. */
+const QA_TABS='<w:tabs><w:tab w:val="left" w:pos="454"/><w:tab w:val="left" w:pos="1928"/><w:tab w:val="left" w:pos="2211"/></w:tabs>';
+function qaXml(ps,rp){
+  const run=(t,tab)=>`<w:r>${rp}${tab?'<w:tab/>':''}<w:t xml:space="preserve">${t}</w:t></w:r>`;
+  const par=(sp,keep,runs)=>`<w:p><w:pPr>${ps}${keep?'<w:keepNext/>':''}${QA_TABS}<w:spacing w:before="${sp[0]}" w:after="${sp[1]}" w:line="240" w:lineRule="auto"/><w:ind w:left="2211" w:hanging="2211"/><w:jc w:val="both"/></w:pPr>${runs}</w:p>`;
+  return `<w:p><w:r><w:t>{{#qa}}</w:t></w:r></w:p>`
+   +par([120,0],1,run('{{no}}.')+run('Pertanyaan',1)+run(':',1)+run('{{q}}',1))
+   +par([0,60],0,run('Jawaban',1)+run(':',1)+run('{{a}}',1))
+   +`<w:p><w:r><w:t>{{/qa}}</w:t></w:r></w:p>`;
+}
+function upQA(z){
+  const f='word/document.xml',x=z.file(f).asText();
+  const y=x.replace(/<w:p[ >](?:(?!<w:p[ >])[\s\S])*?<\/w:p>/g,p=>{
+    if(p.replace(/<[^>]+>/g,'').trim()!=='{{daftar_qa}}')return p;
+    return qaXml((p.match(/<w:pStyle [^>]*\/>/)||[''])[0],(p.match(/<w:rPr>[\s\S]*?<\/w:rPr>/)||[''])[0]);
+  });
+  if(y!==x)z.file(f,y);
+}
 async function mk(k,m){
   try{
     const b64 = await getTpl(k);
     if (!b64 || b64.length < 100) throw new Error('Template kosong atau tidak valid di Drive');
     const z = new PizZip(b64, {base64: true});
+    if(k==='bap')upQA(z);
     const d = new docxtemplater(z, {delimiters:{start:'{{',end:'}}'}, paragraphLoop:true, linebreaks:true, nullGetter:()=>'…'});
     d.render(m);
     const blob = d.getZip().generate({type:'blob', mimeType:MT});
