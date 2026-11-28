@@ -1,5 +1,5 @@
 // Service Worker minimal untuk PWA DIKO
-const CACHE_NAME = 'diko-v1';
+const CACHE_NAME = 'diko-v2';
 const urlsToCache = [
   './',
   './index.html',
