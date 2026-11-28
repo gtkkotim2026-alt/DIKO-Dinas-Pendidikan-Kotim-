@@ -1,7 +1,7 @@
 // Service Worker PWA DIKO
 // SETIAP RILIS: ubah VERSION di bawah (samakan dengan APP_VER di index.html).
 // Browser membandingkan isi sw.js; begitu berubah, versi baru langsung dipasang.
-const VERSION = '2026.11.28-1';
+const VERSION = '1.92.25 - Versi 2';
 const CACHE_NAME = 'diko-' + VERSION;
 const CORE = ['./', './index.html', './config.js', './app.js', './manifest.json', './diko.jpg', './icon-192.png', './icon-512.png'];
 
