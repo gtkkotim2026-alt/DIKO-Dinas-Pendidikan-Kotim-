@@ -19,6 +19,7 @@ const MENU = [
   { g: 'Data Kepegawaian', items: [
     { id: 'pegawai', t: 'Pegawai Disdik', ico: '👥' },
     { id: 'guru', t: 'Data Guru', ico: '👨‍🏫' },
+    { id: 'update_data', t: 'Update Data Guru & Pegawai', ico: '⬇️' },
     { id: 'riwayat_guru', t: 'Riwayat Perubahan Guru', ico: '📜' },
     { id: 'sinkron_dapodik', t: 'Sinkronisasi Dapodik', ico: '🔄' },
     { id: 'kepsek', t: 'Data Kepala Sekolah', ico: '👨‍💼' }
@@ -91,9 +92,9 @@ async function api(action, payload = {}, skipCache = false) {
   if (!CFG.API_URL || CFG.API_URL.indexOf('GANTI') >= 0) throw new Error('API_URL belum diisi di config.js');
 
   // Cache hanya untuk aksi list yang aman
-  const cacheable = !skipCache && (action === 'list' || action === 'listSK' || action === 'refs');
+  const cacheable = (action === 'list' || action === 'listSK' || action === 'refs');
   const key = cacheable ? action + ':' + JSON.stringify(payload) : null;
-  if (key && _cache.has(key)) {
+  if (key && !skipCache && _cache.has(key)) {
     const c = _cache.get(key);
     if (Date.now() - c.t < CACHE_TTL) return c.data;
   }
@@ -236,7 +237,7 @@ function authLogin(info) {
   $('#fp').onclick = e => { e.preventDefault(); authForgot($('#lu').value); };
   $('#lf').onsubmit = async e => {
     e.preventDefault(); const b = $('#lf .btn'); b.disabled = true; $('#le').hidden = true;
-    try { const r = await api('login', { username: $('#lu').value, password: $('#lp').value }); S.token = r.token; sessionStorage.setItem('tk', r.token); init(r); }
+    try { const r = await api('login', { username: $('#lu').value, password: $('#lp').value }); S.token = r.token; sessionStorage.setItem('tk', r.token); clearCache(); init(r); }
     catch (er) { $('#le').hidden = false; $('#le').textContent = er.message; b.disabled = false; }
   };
 }
@@ -321,6 +322,7 @@ function authReset(un, info) {
 async function doLogout(expired) {
   if (!expired && S.token) { try { await api('logout'); } catch (e) {} }
   sessionStorage.removeItem('tk'); sessionStorage.removeItem('pdtk'); sessionStorage.removeItem('pdus');
+  clearCache();
   if (MAP) { MAP.remove(); MAP = null; }
   document.body.classList.remove('nav-open');
   showLogin();
@@ -364,6 +366,7 @@ function init(r) {
   $('#pw').onclick = openPw;
   const role = S.user.role;
   const menus = new Set(S.user.menus || []);   // dari server (matriks akses di Code.gs)
+  if (UPD_IDS.some(k => S.schema[k])) menus.add('update_data');   // menu update manual: tampil bila peran punya akses data guru/pegawai
   const allowed = id => menus.has(id) || (role === 'guru' && (id === 'mutasi' || id === 'mediasi'));  // layanan di dalam Modul Guru
   const link = i => `<a href="#/${i.id}" data-id="${i.id}"><span class="nav-ico">${i.ico || '•'}</span><span class="nav-label">${esc(i.t)}</span></a>`;
   $('#nav').innerHTML = MENU.map(m => {
@@ -390,7 +393,7 @@ async function route() {
     else if (id === 'modul_mutasi') await pageEntity('mutasi');
     else if (id === 'portal_sekolah') await pagePortalSekolah();
     else if (id === 'lokasi') await pageLokasi();
-    else if (id === 'kebutuhan') await pageKebutuhan(); else if (id === 'statistik_user') await pageStatistikUser(); else if (id === 'periode_kepsek') await pagePeriodeKepsek(); else if (id === 'pengawas') await pagePengawas(); else if (id === 'penandatangan') await pagePenandatangan(); else if (id === 'wilayah_binaan') await pageWilayahBinaan(); else if (id === 'riwayat_guru') await pageRiwayatGuru(); else if (id === 'sinkron_dapodik') await pageSinkronDapodik();
+    else if (id === 'kebutuhan') await pageKebutuhan(); else if (id === 'statistik_user') await pageStatistikUser(); else if (id === 'periode_kepsek') await pagePeriodeKepsek(); else if (id === 'pengawas') await pagePengawas(); else if (id === 'penandatangan') await pagePenandatangan(); else if (id === 'wilayah_binaan') await pageWilayahBinaan(); else if (id === 'riwayat_guru') await pageRiwayatGuru(); else if (id === 'sinkron_dapodik') await pageSinkronDapodik(); else if (id === 'update_data') await pageUpdateData();
     else if (id.startsWith('sk_')) await pageSK(id);
     else await pageEntity(id);
   }
@@ -1745,19 +1748,71 @@ async function pagePengawas() {
   });
 }
 
+/* ---------- update manual data guru & pegawai ---------- */
+const UPD_IDS = ['pegawai', 'guru'];
+const UPD_META = { pegawai: { t: 'Data Pegawai Disdik', ico: '👥' }, guru: { t: 'Data Guru', ico: '👨‍🏫' } };
+const updKey = id => 'diko_upd:' + ((S.user && S.user.username) || '') + ':' + id;
+function updInfo(id) { try { return JSON.parse(localStorage.getItem(updKey(id)) || 'null'); } catch (e) { return null; } }
+function updText(id) {
+  const i = updInfo(id);
+  if (!i) return 'Belum pernah diperbarui manual di perangkat ini';
+  return i.n.toLocaleString('id-ID') + ' data · diperbarui ' + new Date(i.t).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+}
+// Ambil data terbaru dari server (melewati cache), timpa cache lokal, catat waktunya.
+async function refreshEntity(id) {
+  const rows = (await api('list', { entity: id }, true)).rows || [];
+  try { localStorage.setItem(updKey(id), JSON.stringify({ t: Date.now(), n: rows.length })); } catch (e) {}
+  return rows;
+}
+async function pageUpdateData() {
+  $('#ttl').textContent = 'Update Data Guru & Pegawai';
+  const ids = UPD_IDS.filter(k => S.schema[k]);
+  if (!ids.length) { $('#view').innerHTML = '<div class="card err">Anda tidak memiliki akses ke data ini.</div>'; return; }
+  $('#view').innerHTML = `<div class="card"><b>Ambil data terbaru dari server</b>
+    <p class="mu" style="margin:6px 0 0">Gunakan bila data guru atau pegawai di layar belum sama dengan yang ada di server, misalnya setelah impor Dapodik atau perubahan oleh admin lain. Data lama diganti hanya jika pengambilan berhasil; bila gagal, data lama tetap dipakai.</p>
+    ${ids.length > 1 ? '<p style="margin:14px 0 0"><button class="btn" id="updall">↻ Perbarui semua</button></p>' : ''}</div>
+    ${ids.map(k => `<div class="card" data-u="${k}"><div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="font-size:28px">${UPD_META[k].ico}</div>
+      <div style="flex:1;min-width:200px"><b>${UPD_META[k].t}</b><div class="mu sm" data-i>${esc(updText(k))}</div></div>
+      <button class="btn${ids.length > 1 ? ' sec' : ''}" data-go="${k}">↻ Perbarui</button></div>
+      <div class="msg" data-m hidden></div></div>`).join('')}`;
+  const run = async list => {
+    $$('[data-go],#updall').forEach(b => b.disabled = true);
+    for (const k of list) {
+      const box = $(`[data-u="${k}"]`), m = $('[data-m]', box), btn = $('[data-go]', box);
+      btn.textContent = 'Memperbarui…'; m.hidden = true;
+      try {
+        const rows = await refreshEntity(k);
+        $('[data-i]', box).textContent = updText(k);
+        m.className = 'msg ok'; m.textContent = '✓ Berhasil. ' + rows.length.toLocaleString('id-ID') + ' data terbaru sudah dimuat.';
+      } catch (x) { m.className = 'msg'; m.textContent = x.message + ' Data lama tetap dipakai.'; }
+      m.hidden = false; btn.textContent = '↻ Perbarui';
+    }
+    $$('[data-go],#updall').forEach(b => b.disabled = false);
+  };
+  $$('[data-go]').forEach(b => b.onclick = () => run([b.dataset.go]));
+  if ($('#updall')) $('#updall').onclick = () => run(ids);
+}
+
 async function pageEntity(id) {
   const ent = S.schema[id]; $('#ttl').textContent = ent.title;
   $('#view').innerHTML = '<div class="card mu">Memuat…</div>';
-  const rows = (await api('list', { entity: id })).rows.reverse();
-  V = { id, ent, rows, q: '', flt: {}, page: 1, reload: async () => { V.rows = (await api('list', { entity: id })).rows.reverse(); drawTable(); } };
+  const rows = (await api('list', { entity: id })).rows.slice().reverse();
+  V = { id, ent, rows, q: '', flt: {}, page: 1, reload: async () => { V.rows = (await api('list', { entity: id })).rows.slice().reverse(); drawTable(); } };
   const flts = ent.fields.filter(f => f.flt && f.t === 'select');
   $('#view').innerHTML = `<div id="extra"></div><div class="card"><div class="tools"><input id="q" type="search" placeholder="Cari…">
     ${flts.map(f => `<select data-f="${f.k}"><option value="">Semua ${esc(f.l)}</option>${f.o.map(o => `<option>${esc(o)}</option>`).join('')}</select>`).join('')}
-    <div class="sp"></div>${ent.imp ? '<button class="btn sec" id="imp">Impor Excel</button>' : ''}<button class="btn sec" id="exp">Ekspor CSV</button>${ent.ops.includes('create') ? '<button class="btn" id="add">+ Tambah</button>' : ''}</div><div id="tbl"></div></div>`;
+    <div class="sp"></div>${UPD_IDS.includes(id) ? '<button class="btn sec" id="rfr" title="Ambil data terbaru dari server">↻ Perbarui</button>' : ''}${ent.imp ? '<button class="btn sec" id="imp">Impor Excel</button>' : ''}<button class="btn sec" id="exp">Ekspor CSV</button>${ent.ops.includes('create') ? '<button class="btn" id="add">+ Tambah</button>' : ''}</div><div id="tbl"></div></div>`;
   $('#q').oninput = e => { V.q = e.target.value; V.page = 1; drawTable(); };
   $$('[data-f]').forEach(s => s.onchange = () => { V.flt[s.dataset.f] = s.value; V.page = 1; drawTable(); });
   $('#exp').onclick = exportCSV;
   if ($('#imp')) $('#imp').onclick = openImport;
+  if ($('#rfr')) $('#rfr').onclick = async e => {
+    const b = e.currentTarget; b.disabled = true;
+    try { V.rows = (await refreshEntity(id)).slice().reverse(); drawTable(); toast('Data diperbarui: ' + V.rows.length + ' data', 'ok'); }
+    catch (x) { toast(x.message + ' Data lama tetap dipakai.', 'er'); }
+    b.disabled = false;
+  };
   if ($('#add')) $('#add').onclick = () => openForm(null);
   $('#tbl').onclick = onTblClick;
   drawTable();
@@ -2146,7 +2201,7 @@ async function openImport() {
   document.body.appendChild(m);
   const close = async () => {
     m.remove();
-    if (st.dirty) { try { if (id === 'sekolah') S.refs = (await api('refs')).refs; await V.reload(); } catch (e) {} }
+    if (st.dirty) { clearCache(); try { if (id === 'sekolah') S.refs = (await api('refs')).refs; await V.reload(); } catch (e) {} }
   };
   $('.x', m).onclick = close; $('#icl', m).onclick = close;
 
