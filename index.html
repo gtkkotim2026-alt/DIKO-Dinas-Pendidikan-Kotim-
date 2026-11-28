@@ -86,20 +86,119 @@ header{background:rgba(255,255,255,.92)!important;backdrop-filter:blur(16px)!imp
 .tools input, .tools select{border-radius:10px!important}
 .modal .box{border-radius:18px!important;box-shadow:0 25px 50px -12px rgba(0,0,0,.25)!important}
 </style>
+<style>
+/* ===== Splash DIKO ===== */
+body.splash-on{overflow:hidden}
+#splash{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;color:#eaf1ff;
+ background:radial-gradient(ellipse 70% 50% at 50% 38%,rgba(26,86,219,.38),transparent 70%),#0a1428;
+ font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;transition:opacity .6s ease,transform .6s ease,visibility .6s}
+#splash.out{opacity:0;visibility:hidden;transform:scale(1.04)}
+.sp-wrap{width:100%;max-width:420px;text-align:center}
+#spNet{display:block;width:min(86vw,360px);height:auto;margin:0 auto -6px;overflow:visible}
+.sp-ln{stroke:#4f8bff;stroke-width:1.4;stroke-linecap:round;opacity:.75;animation:spDraw .9s cubic-bezier(.3,.7,.2,1) backwards}
+.sp-lk{stroke:#4f8bff;stroke-width:1;opacity:.22;animation:spFade .8s ease 1s backwards}
+.sp-nd{fill:#9cc2ff;transform-box:fill-box;transform-origin:center;animation:spPop .5s cubic-bezier(.3,1.6,.5,1) backwards}
+.sp-ring{fill:none;stroke:#74a9ff;stroke-width:1.5;transform-box:fill-box;transform-origin:center;animation:spRing 2.4s ease-out 1.2s infinite backwards}
+.sp-ring.r2{animation-delay:2.4s}
+.sp-d{font:800 44px system-ui,sans-serif;fill:#fff;display:none}
+.sp-d.on{display:block}
+.sp-word{display:flex;justify-content:center;gap:.14em;font-size:clamp(46px,13vw,64px);font-weight:800;line-height:1;margin:0}
+.sp-word span{animation:spRise .7s cubic-bezier(.2,.8,.2,1) backwards}
+.sp-sub{margin:14px auto 0;max-width:300px;font-size:13px;line-height:1.5;color:#9db2d6;animation:spFade .8s ease 1.7s backwards}
+.sp-track{width:min(220px,60vw);height:3px;margin:26px auto 0;border-radius:3px;background:rgba(157,178,214,.22);overflow:hidden;animation:spFade .6s ease 1.2s backwards}
+.sp-track i{display:block;height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,#4f8bff,#a9ccff);transition:width .9s cubic-bezier(.3,.7,.2,1)}
+.sp-st{margin:12px 0 0;min-height:18px;font-size:12px;color:#b7c8e6;animation:spFade .6s ease 1.4s backwards}
+.sp-ver{position:absolute;bottom:max(18px,env(safe-area-inset-bottom));margin:0;font-size:11px;color:#6f86ad}
+@keyframes spDraw{from{stroke-dashoffset:var(--len)}}
+@keyframes spFade{from{opacity:0}}
+@keyframes spPop{from{opacity:0;transform:scale(.2)}}
+@keyframes spRise{from{opacity:0;transform:translateY(16px);filter:blur(6px)}}
+@keyframes spRing{0%{opacity:.6;transform:scale(1)}100%{opacity:0;transform:scale(1.9)}}
+@media(prefers-reduced-motion:reduce){#spPk{display:none}.sp-ring{display:none}#splash{transition:opacity .2s}}
+</style>
 </head>
-<body>
+<body class="splash-on">
+<div id="splash" role="status" aria-live="polite" aria-label="Memuat DIKO">
+  <div class="sp-wrap">
+    <svg id="spNet" viewBox="0 0 360 360" aria-hidden="true">
+      <defs>
+        <radialGradient id="spG" cx="50%" cy="35%" r="75%"><stop offset="0" stop-color="#5b95ff"/><stop offset="1" stop-color="#1a56db"/></radialGradient>
+        <clipPath id="spClip"><circle cx="180" cy="180" r="40"/></clipPath>
+      </defs>
+      <g id="spLk"></g><g id="spLn"></g><g id="spPk"></g><g id="spNd"></g>
+      <circle class="sp-ring" cx="180" cy="180" r="46"/>
+      <circle class="sp-ring r2" cx="180" cy="180" r="46"/>
+      <circle cx="180" cy="180" r="46" fill="url(#spG)"/>
+      <text id="spD" class="sp-d" x="180" y="196" text-anchor="middle">D</text>
+      <g id="spImg" clip-path="url(#spClip)"></g>
+    </svg>
+    <div class="sp-word" aria-label="DIKO"><span style="animation-delay:1.0s">D</span><span style="animation-delay:1.1s">I</span><span style="animation-delay:1.2s">K</span><span style="animation-delay:1.3s">O</span></div>
+    <p class="sp-sub">Sistem Informasi Terintegrasi untuk Tata Kelola Guru dan Tenaga Kependidikan</p>
+    <div class="sp-track"><i id="spBar"></i></div>
+    <p class="sp-st" id="spSt">Memeriksa pembaruan…</p>
+  </div>
+  <p class="sp-ver" id="spVer"></p>
+</div>
+<script>
+/* Splash + pemeriksaan versi. SETIAP RILIS: samakan APP_VER dengan VERSION di sw.js */
+(function(){
+  var APP_VER='2026.11.28-1', MIN=2600, MAX=7000, t0=Date.now(), over=false, had=false, reloaded=false;
+  var sp=document.getElementById('splash'), st=document.getElementById('spSt'), bar=document.getElementById('spBar');
+  var NS='http://www.w3.org/2000/svg', C=180;
+  document.getElementById('spVer').textContent='Versi '+APP_VER;
+  function el(n,a,p){var e=document.createElementNS(NS,n);for(var k in a)e.setAttribute(k,a[k]);p.appendChild(e);return e}
+  var P=[[48,92],[96,40],[210,28],[306,84],[326,200],[278,312],[160,334],[62,282],[28,186]];
+  P.forEach(function(p,i){
+    var len=Math.round(Math.hypot(p[0]-C,p[1]-C)), d=(.15+i*.09).toFixed(2)+'s';
+    var l=el('line',{x1:p[0],y1:p[1],x2:C,y2:C,'class':'sp-ln'},document.getElementById('spLn'));
+    l.style.setProperty('--len',len); l.style.strokeDasharray=len; l.style.animationDelay=d;
+    if(i%2===0){var q=P[(i+1)%P.length];el('line',{x1:p[0],y1:p[1],x2:q[0],y2:q[1],'class':'sp-lk'},document.getElementById('spLk'))}
+    var n=el('circle',{cx:p[0],cy:p[1],r:i%3===0?6:4.5,'class':'sp-nd'},document.getElementById('spNd')); n.style.animationDelay=(.35+i*.09).toFixed(2)+'s';
+    var b=(1+i*.22).toFixed(2)+'s', k=el('circle',{cx:0,cy:0,r:2.8,fill:'#cfe1ff',opacity:0},document.getElementById('spPk'));
+    el('animateMotion',{dur:'1.9s',begin:b,repeatCount:'indefinite',path:'M'+p[0]+' '+p[1]+' L'+C+' '+C},k);
+    el('animate',{attributeName:'opacity',values:'0;1;1;0',keyTimes:'0;.15;.8;1',dur:'1.9s',begin:b,repeatCount:'indefinite'},k);
+  });
+  var im=new Image(); im.onload=function(){var g=el('image',{x:140,y:140,width:80,height:80,preserveAspectRatio:'xMidYMid slice'},document.getElementById('spImg'));g.setAttributeNS('http://www.w3.org/1999/xlink','href','icon-192.png');g.setAttribute('href','icon-192.png')};
+  im.onerror=function(){document.getElementById('spD').setAttribute('class','sp-d on')}; im.src='icon-192.png';
+
+  function say(t){st.textContent=t}
+  function setBar(p){bar.style.width=p+'%'}
+  function close(){
+    if(over)return; over=true; setBar(100);
+    setTimeout(function(){sp.classList.add('out');document.body.classList.remove('splash-on');setTimeout(function(){if(sp.parentNode)sp.parentNode.removeChild(sp)},800)},Math.max(400,MIN-(Date.now()-t0)));
+  }
+  setBar(18); setTimeout(close,MAX);
+
+  var sw=('serviceWorker' in navigator && /^https?:/.test(location.protocol))?navigator.serviceWorker:null, justUpd=false;
+  try{justUpd=Date.now()-Number(sessionStorage.getItem('diko_upd')||0)<30000}catch(e){}
+  say(justUpd?'Berhasil diperbarui ke versi terbaru':'Memeriksa pembaruan…');
+  if(!sw){setTimeout(function(){setBar(70)},500);setTimeout(close,MIN);return}
+
+  had=!!sw.controller;
+  // Versi baru aktif: muat ulang (hanya selagi splash masih tampil, agar tidak memotong pengisian login)
+  sw.addEventListener('controllerchange',function(){
+    if(!had||reloaded||over)return; reloaded=true;
+    try{sessionStorage.setItem('diko_upd',String(Date.now()))}catch(e){}
+    location.reload();
+  });
+  sw.register('./sw.js',{updateViaCache:'none'}).then(function(reg){
+    // Cek ulang saat aplikasi dibuka kembali dari latar belakang
+    document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')reg.update().catch(function(){})});
+    if(!had)return 'none';
+    return reg.update().then(function(){return (reg.installing||reg.waiting)?'new':'latest'});
+  }).catch(function(){return 'offline'}).then(function(r){
+    if(r==='new'){say('Memasang versi terbaru…');setBar(65);return}
+    setBar(70);
+    say(r==='latest'?(justUpd?'Berhasil diperbarui ke versi terbaru':'Versi terbaru sudah terpasang'):r==='offline'?'Tanpa koneksi, memakai versi tersimpan':'Menyiapkan aplikasi…');
+    close();
+  });
+})();
+</script>
 <div id="loader"><div class="spinner"></div></div>
 <div id="bar"></div>
 <div id="root"></div>
 <div id="toast"></div>
 <script src="config.js"></script>
-<script src="app.js?v=20261126"></script>
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
-  });
-}
-</script>
+<script src="app.js?v=20261128"></script>
 </body>
 </html>
