@@ -1,32 +1,47 @@
-// Service Worker minimal untuk PWA DIKO
-const CACHE_NAME = 'diko-v2';
-const urlsToCache = [
-  './',
-  './index.html',
-  './config.js',
-  './app.js',
-  './manifest.json',
-  './diko.jpg'
-];
+// Service Worker PWA DIKO
+// SETIAP RILIS: ubah VERSION di bawah (samakan dengan APP_VER di index.html).
+// Browser membandingkan isi sw.js; begitu berubah, versi baru langsung dipasang.
+const VERSION = '2026.11.28-1';
+const CACHE_NAME = 'diko-' + VERSION;
+const CORE = ['./', './index.html', './config.js', './app.js', './manifest.json', './diko.jpg', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(urlsToCache))
+      // Satu per satu: bila ada file yang tidak ada (mis. diko.jpg), pemasangan TIDAK ikut gagal.
+      .then(cache => Promise.all(CORE.map(u => cache.add(new Request(u, { cache: 'reload' })).catch(() => {}))))
       .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });
 
+// Network-first: selalu ambil yang terbaru dari server (lewati cache HTTP browser).
+// Cache hanya dipakai sebagai cadangan saat offline / server tidak terjangkau.
+// Permintaan ke API Google Apps Script (lintas domain) tidak disentuh sama sekali.
 self.addEventListener('fetch', event => {
+  const req = event.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+
   event.respondWith(
-    caches.match(event.request).then(response => response || fetch(event.request))
+    fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' })
+      .then(res => {
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then(c => c.put(req, copy)).catch(() => {});
+        }
+        return res;
+      })
+      .catch(() =>
+        caches.match(req).then(hit => hit || (req.mode === 'navigate' ? caches.match('./index.html') : Response.error()))
+      )
   );
 });
